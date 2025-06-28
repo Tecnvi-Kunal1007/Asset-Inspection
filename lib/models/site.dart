@@ -16,6 +16,7 @@ class Site {
   final String contractorId;
   final String areaId;
   final DateTime createdAt;
+  final String description; // Added as proper class field
 
   Site({
     required this.id,
@@ -35,6 +36,7 @@ class Site {
     required this.contractorId,
     required this.areaId,
     required this.createdAt,
+    required this.description,
   });
 
   factory Site.fromJson(Map<String, dynamic> json) {
@@ -56,6 +58,7 @@ class Site {
       contractorId: json['contractor_id'] as String,
       areaId: json['area_id'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
+      description: json['description'] as String? ?? '',
     );
   }
 
@@ -78,6 +81,7 @@ class Site {
       'contractor_id': contractorId,
       'area_id': areaId,
       'created_at': createdAt.toIso8601String(),
+      'description': description,
     };
   }
 }

@@ -24,7 +24,8 @@ import '../components/area_report_generator.dart';
 import '../services/supabase_service.dart';
 import '../services/report_email_service.dart';
 import '../widgets/billboard_footer.dart';
-import 'package:pump_management_system/widgets/floating_chatbot.dart';
+import 'package:pump_management_system/widgets/floating_chat.dart';
+import '../utils/responsive_helper.dart';
 
 class SiteManagerDashboard extends StatefulWidget {
   const SiteManagerDashboard({super.key});
@@ -92,7 +93,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
       for (final area in areas) {
         final assignmentType = area['assignment_type'] as String;
         if (assignmentType == 'pumps_floor') {
-          assignedSections.add('pumps_floor');
+          assignedSections.add('floor');
         } else if (assignmentType == 'building_fire') {
           assignedSections.add('building_fire');
         }
@@ -148,7 +149,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                       siteData['site_inspector_photo'] as String,
                   contractorId: siteData['contractor_id'] as String,
                   contractorEmail: siteData['contractor_email'] as String,
-                  createdAt: DateTime.parse(siteData['created_at'] as String),
+                  createdAt: DateTime.parse(siteData['created_at'] as String), description: '',
                 );
               }).toList();
         }
@@ -251,7 +252,196 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
     }
   }
 
-  Widget _buildAreaCard(Map<String, dynamic> area, String assignmentType) {
+  Widget _buildAssignedAreasGrid(BuildContext context) {
+    // Determine number of columns based on screen size
+    int columnCount = ResponsiveHelper.getColumnCount(context);
+    
+    if (ResponsiveHelper.isMobile(context)) {
+      // For mobile, use a vertical list
+      return ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _assignedAreas.length,
+        itemBuilder: (context, index) {
+          return _buildAreaListItem(index);
+        },
+      );
+    } else {
+      // For tablet and desktop, use a grid
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columnCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: ResponsiveHelper.isTablet(context) ? 0.9 : 1.1,
+        ),
+        itemCount: _assignedAreas.length,
+        itemBuilder: (context, index) {
+          return _buildAreaListItem(index);
+        },
+      );
+    }
+  }
+
+  Widget _buildAreaListItem(int index) {
+    final area = _assignedAreas[index]['areas'];
+    final areaId = area['id'] as String;
+    final assignmentType = _assignedAreas[index]['assignment_type'];
+    final sitesInArea = _sitesByArea[areaId] ?? [];
+    final isExpanded = _expandedAreas[areaId] ?? false;
+
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          // Area Header
+          ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            title: Text(
+              area['name'] ?? 'Unnamed Area',
+              style: GoogleFonts.poppins(
+                fontSize: ResponsiveHelper.getFontSize(context, 18),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  'Location: ${area['site_location'] ?? 'Not specified'}',
+                  style: GoogleFonts.poppins(
+                    fontSize: ResponsiveHelper.getFontSize(context, 14),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Assignment Type: ${assignmentType == 'pumps_floor' ? 'Floor Management' : 'Building & Fire'}',
+                  style: GoogleFonts.poppins(
+                    fontSize: ResponsiveHelper.getFontSize(context, 14),
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total Sites: ${sitesInArea.length}',
+                  style: GoogleFonts.poppins(
+                    fontSize: ResponsiveHelper.getFontSize(context, 14),
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: Icon(
+                isExpanded ? Icons.expand_less : Icons.expand_more,
+                color: Colors.blue.shade700,
+              ),
+              onPressed: () => _toggleAreaExpansion(areaId),
+            ),
+          ),
+          if (isExpanded) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Area Inspection',
+                    style: GoogleFonts.poppins(
+                      fontSize: ResponsiveHelper.getFontSize(context, 16),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildAreaDetailCard(_assignedAreas[index], assignmentType),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Sites in this Area',
+                    style: GoogleFonts.poppins(
+                      fontSize: ResponsiveHelper.getFontSize(context, 16),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateSiteScreen(
+                              areaId: areaId,
+                              area: Area(
+                                id: areaId,
+                                name: area['name'] ?? '',
+                                description: area['description'] ?? '',
+                                contractorId: area['contractor_id'] ?? '',
+                                siteOwner: area['site_owner'] ?? '',
+                                siteOwnerEmail: area['site_owner_email'] ?? '',
+                                siteOwnerPhone: area['site_owner_phone'] ?? '',
+                                siteManager: area['site_manager'] ?? '',
+                                siteManagerEmail: area['site_manager_email'] ?? '',
+                                siteManagerPhone: area['site_manager_phone'] ?? '',
+                                siteLocation: area['site_location'] ?? '',
+                                contractorEmail: area['contractor_email'] ?? '',
+                                createdAt: DateTime.parse(
+                                  area['created_at'] ?? DateTime.now().toIso8601String(),
+                                ),
+                                updatedAt: DateTime.parse(
+                                  area['updated_at'] ?? DateTime.now().toIso8601String(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ).then((result) {
+                          if (result == true) {
+                            _loadAssignedData();
+                          }
+                        });
+                      },
+                      icon: const Icon(Icons.add_circle_outline),
+                      label: Text(
+                        'Create New Site',
+                        style: GoogleFonts.poppins(
+                          fontSize: ResponsiveHelper.getFontSize(context, 16),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Sites list with responsive layout
+                  _buildSitesList(sitesInArea),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAreaDetailCard(Map<String, dynamic> area, String assignmentType) {
     final areaData = area['areas'] as Map<String, dynamic>;
     final inspectionStatus = area['inspection_status'] as String? ?? 'pending';
     final isCompleted = inspectionStatus == 'completed';
@@ -277,7 +467,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                   child: Text(
                     areaData['name'] ?? 'Unnamed Area',
                     style: GoogleFonts.poppins(
-                      fontSize: 18,
+                      fontSize: ResponsiveHelper.getFontSize(context, 18),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -301,7 +491,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                     inspectionStatus.toUpperCase(),
                     style: TextStyle(
                       color: isCompleted ? Colors.green : Colors.orange,
-                      fontSize: 12,
+                      fontSize: ResponsiveHelper.getFontSize(context, 12),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -315,7 +505,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Assignment Type: ${assignmentType == 'pumps_floor' ? 'Pumps & Floor' : 'Building & Fire'}',
+              'Assignment Type: ${assignmentType == 'pumps_floor' ? 'Floor Management' : 'Building & Fire'}',
               style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 16),
@@ -324,7 +514,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                 'Completed on: ${DateTime.parse(area['inspection_completed_at']).toString().split('.')[0]}',
                 style: GoogleFonts.poppins(
                   color: Colors.grey[600],
-                  fontSize: 14,
+                  fontSize: ResponsiveHelper.getFontSize(context, 14),
                 ),
               ),
             const SizedBox(height: 16),
@@ -342,16 +532,16 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                   Text(
                     'Area Reports',
                     style: GoogleFonts.poppins(
-                      fontSize: 16,
+                      fontSize: ResponsiveHelper.getFontSize(context, 16),
                       fontWeight: FontWeight.w600,
                       color: Colors.blue.shade800,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Section: ${_assignedSections.first == 'pumps_floor' ? 'Pumps & Floor Management' : 'Building Accessories & Fire Alarm Management'}',
+                    'Section: ${_assignedSections.first == 'floor' ? 'Floor Management' : 'Building Accessories & Fire Alarm Management'}',
                     style: GoogleFonts.poppins(
-                      fontSize: 14,
+                      fontSize: ResponsiveHelper.getFontSize(context, 14),
                       color: Colors.grey[600],
                     ),
                   ),
@@ -399,7 +589,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                                   ),
                           icon:
                               _isGeneratingReport
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                     width: 20,
                                     height: 20,
                                     child: CircularProgressIndicator(
@@ -437,7 +627,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                     Text(
                       'Recent Reports',
                       style: GoogleFonts.poppins(
-                        fontSize: 14,
+                        fontSize: ResponsiveHelper.getFontSize(context, 14),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -448,12 +638,14 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(
                           report['file_name'] ?? 'Unnamed Report',
-                          style: GoogleFonts.poppins(fontSize: 14),
+                          style: GoogleFonts.poppins(
+                            fontSize: ResponsiveHelper.getFontSize(context, 14),
+                          ),
                         ),
                         subtitle: Text(
                           'Generated: ${DateTime.parse(report['generated_at']).toString().split('.')[0]}',
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: ResponsiveHelper.getFontSize(context, 12),
                             color: Colors.grey[600],
                           ),
                         ),
@@ -465,17 +657,15 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                                 Icons.download,
                                 color: Colors.blue,
                               ),
-                              onPressed:
-                                  () => _downloadReport(report['report_url']),
+                              onPressed: () => _downloadReport(report['report_url']),
                             ),
                             IconButton(
                               icon: const Icon(Icons.send, color: Colors.green),
-                              onPressed:
-                                  () => _sendReport(
-                                    report['report_url'],
-                                    report['file_name'],
-                                    areaData,
-                                  ),
+                              onPressed: () => _sendReport(
+                                report['report_url'],
+                                report['file_name'],
+                                areaData,
+                              ),
                             ),
                           ],
                         ),
@@ -491,13 +681,12 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed:
-                      canMarkComplete
-                          ? () => _markAreaInspectionComplete(
-                            areaData['id'],
-                            assignmentType,
-                          )
-                          : null,
+                  onPressed: canMarkComplete
+                      ? () => _markAreaInspectionComplete(
+                        areaData['id'],
+                        assignmentType,
+                      )
+                      : null,
                   icon: const Icon(Icons.check_circle),
                   label: Text(
                     canMarkComplete
@@ -506,8 +695,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
                     style: GoogleFonts.poppins(),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        canMarkComplete ? Colors.green : Colors.grey,
+                    backgroundColor: canMarkComplete ? Colors.green : Colors.grey,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -522,472 +710,29 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async => false,
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        appBar: AppBar(
-          title: Text(
-            'Freelancer-Employee Dashboard',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-          ),
-          backgroundColor: Colors.blue,
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadAssignedData,
-              tooltip: 'Refresh',
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () async {
-                await authService.logout();
-                if (!mounted) return;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
-              },
-            ),
-          ],
+  Widget _buildSitesList(List<Site> sites) {
+    if (ResponsiveHelper.isMobile(context)) {
+      // For mobile, use a vertical list
+      return Column(
+        children: sites.map((site) => _buildSiteCard(site)).toList(),
+      );
+    } else {
+      // For tablet and desktop, use a grid
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: ResponsiveHelper.isTablet(context) ? 2 : 3,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.2,
         ),
-        body: Stack(
-          children: [
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : SafeArea(
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        // Work Report Section
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Work Reports',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue.shade800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Submit your daily work reports and maintenance activities',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder:
-                                                (context) =>
-                                                    WorkReportFormScreen(
-                                                      freelancerId:
-                                                          _freelancerId!,
-                                                    ),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(
-                                        Icons.add_circle_outline,
-                                      ),
-                                      label: Text(
-                                        'Create Work Report',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blue.shade700,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Assigned Tasks Section
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'My Tasks',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue.shade800,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'View and manage tasks assigned to you',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder:
-                                                (context) =>
-                                                    const AssignedTasksScreen(),
-                                          ),
-                                        );
-                                      },
-                                      icon: const Icon(Icons.task_alt),
-                                      label: Text(
-                                        'View Tasks',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blue.shade700,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        // Assigned Areas Section
-                        if (_assignedAreas.isNotEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16.0,
-                            ),
-                            child: Text(
-                              'Assigned Areas',
-                              style: GoogleFonts.poppins(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _assignedAreas.length,
-                            itemBuilder: (context, index) {
-                              final area = _assignedAreas[index]['areas'];
-                              final areaId = area['id'] as String;
-                              final assignmentType =
-                                  _assignedAreas[index]['assignment_type'];
-                              final sitesInArea = _sitesByArea[areaId] ?? [];
-                              final isExpanded =
-                                  _expandedAreas[areaId] ?? false;
-
-                              return Card(
-                                elevation: 4,
-                                margin: const EdgeInsets.only(bottom: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Column(
-                                  children: [
-                                    // Area Header
-                                    ListTile(
-                                      contentPadding: const EdgeInsets.all(16),
-                                      title: Text(
-                                        area['name'] ?? 'Unnamed Area',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      subtitle: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Location: ${area['site_location'] ?? 'Not specified'}',
-                                            style: GoogleFonts.poppins(),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Assignment Type: ${assignmentType ?? 'Not specified'}',
-                                            style: GoogleFonts.poppins(
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'Total Sites: ${sitesInArea.length}',
-                                            style: GoogleFonts.poppins(
-                                              color: Colors.blue.shade700,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      trailing: IconButton(
-                                        icon: Icon(
-                                          isExpanded
-                                              ? Icons.expand_less
-                                              : Icons.expand_more,
-                                          color: Colors.blue.shade700,
-                                        ),
-                                        onPressed:
-                                            () => _toggleAreaExpansion(areaId),
-                                      ),
-                                    ),
-                                    if (isExpanded) ...[
-                                      const Divider(height: 1),
-                                      Padding(
-                                        padding: const EdgeInsets.all(16),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              'Area Inspection',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 16),
-                                            _buildAreaCard(
-                                              _assignedAreas[index],
-                                              assignmentType,
-                                            ),
-                                            const SizedBox(height: 16),
-                                            Text(
-                                              'Sites in this Area',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 16),
-                                            Container(
-                                              width: double.infinity,
-                                              child: ElevatedButton.icon(
-                                                onPressed: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder:
-                                                          (
-                                                            context,
-                                                          ) => CreateSiteScreen(
-                                                            areaId: areaId,
-                                                            area: Area(
-                                                              id: areaId,
-                                                              name:
-                                                                  area['name'] ??
-                                                                  '',
-                                                              description:
-                                                                  area['description'] ??
-                                                                  '',
-                                                              contractorId:
-                                                                  area['contractor_id'] ??
-                                                                  '',
-                                                              siteOwner:
-                                                                  area['site_owner'] ??
-                                                                  '',
-                                                              siteOwnerEmail:
-                                                                  area['site_owner_email'] ??
-                                                                  '',
-                                                              siteOwnerPhone:
-                                                                  area['site_owner_phone'] ??
-                                                                  '',
-                                                              siteManager:
-                                                                  area['site_manager'] ??
-                                                                  '',
-                                                              siteManagerEmail:
-                                                                  area['site_manager_email'] ??
-                                                                  '',
-                                                              siteManagerPhone:
-                                                                  area['site_manager_phone'] ??
-                                                                  '',
-                                                              siteLocation:
-                                                                  area['site_location'] ??
-                                                                  '',
-                                                              contractorEmail:
-                                                                  area['contractor_email'] ??
-                                                                  '',
-                                                              createdAt: DateTime.parse(
-                                                                area['created_at'] ??
-                                                                    DateTime.now()
-                                                                        .toIso8601String(),
-                                                              ),
-                                                              updatedAt: DateTime.parse(
-                                                                area['updated_at'] ??
-                                                                    DateTime.now()
-                                                                        .toIso8601String(),
-                                                              ),
-                                                            ),
-                                                          ),
-                                                    ),
-                                                  ).then((result) {
-                                                    if (result == true) {
-                                                      _loadAssignedData();
-                                                    }
-                                                  });
-                                                },
-                                                icon: const Icon(
-                                                  Icons.add_circle_outline,
-                                                ),
-                                                label: Text(
-                                                  'Create New Site',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                      Colors.blue.shade700,
-                                                  foregroundColor: Colors.white,
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 16,
-                                                      ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 24),
-                                            ...sitesInArea.map((site) {
-                                              final isAssigned =
-                                                  _isSiteAssignedToFreelancer(
-                                                    site.id,
-                                                  );
-                                              final isCompleted =
-                                                  isAssigned &&
-                                                  (_completedInspections[site
-                                                          .id] ??
-                                                      false);
-                                              return _buildSiteCard(site);
-                                            }).toList(),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-
-                        // No Assignments Message
-                        if (_assignedAreas.isEmpty)
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(32.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.assignment_outlined,
-                                    size: 64,
-                                    color: Colors.grey.shade400,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No Assignments',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'You have not been assigned any areas yet',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade500,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 20),
-                        const BillboardFooter(),
-                      ],
-                    ),
-                  ),
-                ),
-            const FloatingChatbot(userRole: 'site_manager'),
-          ],
-        ),
-      ),
-    );
+        itemCount: sites.length,
+        itemBuilder: (context, index) {
+          return _buildSiteCard(sites[index]);
+        },
+      );
+    }
   }
 
   Widget _buildSiteCard(Site site) {
@@ -1222,7 +967,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
               siteInspectorPhoto: siteData['site_inspector_photo'] as String,
               contractorId: siteData['contractor_id'] as String,
               contractorEmail: siteData['contractor_email'] as String,
-              createdAt: DateTime.parse(siteData['created_at'] as String),
+              createdAt: DateTime.parse(siteData['created_at'] as String), description: '',
             );
           }).toList();
 
@@ -1247,7 +992,7 @@ class _SiteManagerDashboard extends State<SiteManagerDashboard> {
       // Create a meaningful report name with timestamp
       final timestamp = DateTime.now();
       final reportName =
-          '${area.name}_${_isContractor ? 'Complete' : (_assignedSections.first == 'pumps_floor' ? 'Pumps_Floor' : 'Building_Fire')}_Report_${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}_${timestamp.hour.toString().padLeft(2, '0')}${timestamp.minute.toString().padLeft(2, '0')}';
+          '${area.name}_${_isContractor ? 'Complete' : (_assignedSections.first == 'floor' ? 'Floor' : 'Building_Fire')}_Report_${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}_${timestamp.hour.toString().padLeft(2, '0')}${timestamp.minute.toString().padLeft(2, '0')}';
 
       // Upload to Supabase
       final reportUrl = await _supabaseService.uploadAreaReport(
@@ -1471,5 +1216,282 @@ Please find attached the inspection report for the above area.
         _isGeneratingReport = false;
       });
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: AppBar(
+          title: Text(
+            'Freelancer-Employee Dashboard',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: ResponsiveHelper.getFontSize(context, 16),
+            ),
+          ),
+          backgroundColor: Colors.blue,
+          automaticallyImplyLeading: false,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadAssignedData,
+              tooltip: 'Refresh',
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await authService.logout();
+                if (!mounted) return;
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : SafeArea(
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Padding(
+                      padding: ResponsiveHelper.getPadding(context),
+                      child: Column(
+                        children: [
+                          // Work Report and Tasks Sections in a responsive grid
+                          ResponsiveHelper.responsiveWidget(
+                            context: context,
+                            mobile: Column(
+                              children: [
+                                _buildWorkReportCard(),
+                                const SizedBox(height: 16),
+                                _buildTasksCard(),
+                              ],
+                            ),
+                            tablet: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: _buildWorkReportCard()),
+                                const SizedBox(width: 16),
+                                Expanded(child: _buildTasksCard()),
+                              ],
+                            ),
+                            desktop: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: _buildWorkReportCard()),
+                                const SizedBox(width: 16),
+                                Expanded(child: _buildTasksCard()),
+                              ],
+                            ),
+                          ),
+
+                          // Assigned Areas Section
+                          if (_assignedAreas.isNotEmpty) ...[
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                                vertical: 24.0,
+                              ),
+                              child: Text(
+                                'Assigned Areas',
+                                style: GoogleFonts.poppins(
+                                  fontSize: ResponsiveHelper.getFontSize(context, 20),
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildAssignedAreasGrid(context),
+                          ],
+
+                          // No Assignments Message
+                          if (_assignedAreas.isEmpty)
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(32.0),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.assignment_outlined,
+                                      size: 64,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No Assignments',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: ResponsiveHelper.getFontSize(context, 20),
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'You have not been assigned any areas yet',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: ResponsiveHelper.getFontSize(context, 14),
+                                        color: Colors.grey.shade500,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                          const BillboardFooter(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            // Floating chatbot positioned at bottom right
+            Positioned(
+              bottom: 20,
+              right: 20,
+              child: const FloatingChat(userRole: 'site_manager'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkReportCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Work Reports',
+              style: GoogleFonts.poppins(
+                fontSize: ResponsiveHelper.getFontSize(context, 20),
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Submit your daily work reports and maintenance activities',
+              style: GoogleFonts.poppins(
+                fontSize: ResponsiveHelper.getFontSize(context, 14),
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WorkReportFormScreen(
+                        freelancerId: _freelancerId!,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_circle_outline),
+                label: Text(
+                  'Create Work Report',
+                  style: GoogleFonts.poppins(
+                    fontSize: ResponsiveHelper.getFontSize(context, 16),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTasksCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'My Tasks',
+              style: GoogleFonts.poppins(
+                fontSize: ResponsiveHelper.getFontSize(context, 20),
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'View and manage tasks assigned to you',
+              style: GoogleFonts.poppins(
+                fontSize: ResponsiveHelper.getFontSize(context, 14),
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AssignedTasksScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.task_alt),
+                label: Text(
+                  'View Tasks',
+                  style: GoogleFonts.poppins(
+                    fontSize: ResponsiveHelper.getFontSize(context, 16),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

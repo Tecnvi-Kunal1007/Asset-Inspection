@@ -467,7 +467,9 @@ class _FireAlarmFloorComponentsState extends State<FireAlarmFloorComponents> {
     List<String> statusOptions,
     Function() onComponentUpdated,
   ) {
-    final statusController = TextEditingController();
+    final statusController = TextEditingController(
+      text: 'Working',
+    ); // Set default status to "Working"
     final noteController = TextEditingController();
     MobileScannerController? scannerController;
 
@@ -495,6 +497,7 @@ class _FireAlarmFloorComponentsState extends State<FireAlarmFloorComponents> {
                       labelText: 'Status',
                       border: OutlineInputBorder(),
                     ),
+                    value: 'Working', // Set default value to "Working"
                     items:
                         statusOptions.map((status) {
                           return DropdownMenuItem(

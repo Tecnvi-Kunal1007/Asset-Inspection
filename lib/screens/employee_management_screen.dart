@@ -9,6 +9,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/freelancer_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/area_assignment_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
 
 class EmployeeManagementScreen extends StatefulWidget {
   const EmployeeManagementScreen({super.key});
@@ -38,7 +41,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   final _experienceYearsController = TextEditingController();
   final _notesController = TextEditingController();
   final _skillController = TextEditingController();
+  
+  // For non-web platforms
   File? _resumeFile;
+  // For web platform
+  PlatformFile? _webResumeFile;
+  
   String? _resumeFileName;
   File? _profilePhoto;
 
@@ -87,11 +95,20 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   Future<void> _pickResume() async {
     try {
-      final XFile? pickedFile = await _imagePicker.pickMedia();
+      print('DEBUG: Starting _pickResume');
+      // Use FilePicker for both web and mobile
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        allowMultiple: false,
+        withData: kIsWeb, // Load file bytes for web
+      );
 
-      if (pickedFile != null) {
-        // Check if the file is a PDF
-        if (!pickedFile.path.toLowerCase().endsWith('.pdf')) {
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        
+        // Check if it's a PDF by extension
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Please select a PDF file')),
@@ -101,11 +118,25 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         }
 
         setState(() {
-          _resumeFile = File(pickedFile.path);
-          _resumeFileName = pickedFile.name;
+          if (kIsWeb) {
+            print('DEBUG: Setting web resume file');
+            _webResumeFile = file;
+          } else {
+            print('DEBUG: Setting non-web resume file');
+            _resumeFile = File(file.path!);
+          }
+          _resumeFileName = file.name;
         });
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('PDF file selected successfully')),
+          );
+        }
       }
     } catch (e) {
+      print('DEBUG: Error in _pickResume: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -180,11 +211,18 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       String? resumeUrl;
       String? profilePhotoUrl;
 
-      if (_resumeFile != null) {
-        resumeUrl = await _fileUploadService.uploadResume(
-          _resumeFile!,
-          DateTime.now().millisecondsSinceEpoch.toString(),
-        );
+      if (_resumeFile != null || _webResumeFile != null) {
+        if (kIsWeb && _webResumeFile != null) {
+          resumeUrl = await _fileUploadService.uploadResume(
+            _webResumeFile!,
+            DateTime.now().millisecondsSinceEpoch.toString(),
+          );
+        } else if (_resumeFile != null) {
+          resumeUrl = await _fileUploadService.uploadResume(
+            _resumeFile!,
+            DateTime.now().millisecondsSinceEpoch.toString(),
+          );
+        }
       }
 
       if (_profilePhoto != null) {
@@ -216,11 +254,21 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       });
 
       // If resume was uploaded, update the file name with the actual freelancer ID
-      if (_resumeFile != null && resumeUrl != null) {
-        final newResumeUrl = await _fileUploadService.uploadResume(
-          _resumeFile!,
-          freelancerId,
-        );
+      if (resumeUrl != null) {
+        String newResumeUrl;
+        if (kIsWeb && _webResumeFile != null) {
+          newResumeUrl = await _fileUploadService.uploadResume(
+            _webResumeFile!,
+            freelancerId,
+          );
+        } else if (_resumeFile != null) {
+          newResumeUrl = await _fileUploadService.uploadResume(
+            _resumeFile!,
+            freelancerId,
+          );
+        } else {
+          newResumeUrl = resumeUrl;
+        }
 
         // Update the resume URL with the correct one
         await _supabase
@@ -254,6 +302,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       _skillController.clear();
       setState(() {
         _resumeFile = null;
+        _webResumeFile = null;
         _resumeFileName = null;
         _profilePhoto = null;
       });

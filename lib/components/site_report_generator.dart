@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/site.dart';
-import '../models/pump.dart';
+
 import '../models/floor.dart';
 import '../models/smoke_detector.dart';
 import '../models/heat_detector.dart';
@@ -34,7 +34,6 @@ import 'package:flutter/services.dart' show rootBundle;
 
 class SiteReportGenerator {
   final Site site;
-  final List<Pump> pumps;
   final List<Floor> floors;
   final String? siteDescription;
   final SupabaseService supabaseService;
@@ -42,15 +41,55 @@ class SiteReportGenerator {
 
   SiteReportGenerator({
     required this.site,
-    required this.pumps,
     required this.floors,
     required this.supabaseService,
     this.siteDescription,
     this.assignedSection,
   });
 
+  Future<Map<String, dynamic>?> _getAreaDetails() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response =
+          await supabase
+              .from('areas')
+              .select('name, contractor_id')
+              .eq('id', site.areaId)
+              .single();
+      return response;
+    } catch (e) {
+      print('Error fetching area details: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _getContractorDetails(
+    String contractorId,
+  ) async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response =
+          await supabase
+              .from('contractor')
+              .select('name, email, phone')
+              .eq('id', contractorId)
+              .single();
+      return response;
+    } catch (e) {
+      print('Error fetching contractor details: $e');
+      return null;
+    }
+  }
+
   @override
   Future<File> generateReport() async {
+    // Pre-fetch area and contractor data
+    final areaDetails = await _getAreaDetails();
+    final contractorDetails =
+        areaDetails?['contractor_id'] != null
+            ? await _getContractorDetails(areaDetails!['contractor_id'])
+            : null;
+
     // Pre-fetch data
     final tests = await supabaseService.getOperationalTests(site.id);
     final inspections = await supabaseService.getEngineInspections(site.id);
@@ -91,10 +130,10 @@ class SiteReportGenerator {
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.all(20),
         header:
             (context) => pw.Container(
-              padding: const pw.EdgeInsets.only(bottom: 10),
+              padding: const pw.EdgeInsets.only(bottom: 6),
               decoration: pw.BoxDecoration(
                 color: PdfColor.fromHex('#ffd03e'),
                 border: pw.Border(
@@ -107,15 +146,15 @@ class SiteReportGenerator {
                   pw.Text(
                     'Site Inspection Report',
                     style: pw.TextStyle(
-                      fontSize: 20,
+                      fontSize: 14,
                       fontWeight: pw.FontWeight.bold,
                       color: PdfColors.blue,
                     ),
                   ),
                   pw.Image(
                     pw.MemoryImage(logoImageBytes),
-                    width: 100,
-                    height: 50,
+                    width: 70,
+                    height: 35,
                   ),
                 ],
               ),
@@ -125,7 +164,7 @@ class SiteReportGenerator {
           final formattedDate =
               '${now.day}/${now.month}/${now.year} ${now.hour}:${now.minute.toString().padLeft(2, '0')}';
           return pw.Container(
-            padding: const pw.EdgeInsets.only(top: 10),
+            padding: const pw.EdgeInsets.only(top: 6),
             decoration: pw.BoxDecoration(
               color: PdfColor.fromHex('#ffd03e'),
               border: pw.Border(
@@ -137,24 +176,15 @@ class SiteReportGenerator {
               children: [
                 pw.Text(
                   site.siteName,
-                  style: const pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey,
-                  ),
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
                 ),
                 pw.Text(
                   formattedDate,
-                  style: const pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey,
-                  ),
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
                 ),
                 pw.Text(
                   'Tecnvirons Pvt Ltd',
-                  style: const pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey,
-                  ),
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
                 ),
               ],
             ),
@@ -162,6 +192,121 @@ class SiteReportGenerator {
         },
         build:
             (context) => [
+              // Area and Contractor Information Section
+              pw.Container(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Header(
+                      level: 1,
+                      text: 'Area & Contractor Information',
+                      textStyle: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue,
+                      ),
+                    ),
+                    pw.SizedBox(height: 6),
+                    pw.Table(
+                      border: pw.TableBorder.all(),
+                      children: [
+                        pw.TableRow(
+                          children: [
+                            pw.Container(
+                              padding: const pw.EdgeInsets.all(4),
+                              color: PdfColor.fromHex('#e8f4fd'),
+                              child: pw.Text(
+                                'Area Name',
+                                style: pw.TextStyle(
+                                  fontWeight: pw.FontWeight.bold,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            ),
+                            pw.Container(
+                              padding: const pw.EdgeInsets.all(4),
+                              child: pw.Text(
+                                areaDetails?['name'] ?? 'Unknown Area',
+                                style: const pw.TextStyle(fontSize: 9),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (contractorDetails != null) ...[
+                          pw.TableRow(
+                            children: [
+                              pw.Container(
+                                padding: const pw.EdgeInsets.all(4),
+                                color: PdfColor.fromHex('#e8f4fd'),
+                                child: pw.Text(
+                                  'Contractor Name',
+                                  style: pw.TextStyle(
+                                    fontWeight: pw.FontWeight.bold,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ),
+                              pw.Container(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(
+                                  contractorDetails['name'] ?? 'Unknown',
+                                  style: const pw.TextStyle(fontSize: 9),
+                                ),
+                              ),
+                            ],
+                          ),
+                          pw.TableRow(
+                            children: [
+                              pw.Container(
+                                padding: const pw.EdgeInsets.all(4),
+                                color: PdfColor.fromHex('#e8f4fd'),
+                                child: pw.Text(
+                                  'Contractor Email',
+                                  style: pw.TextStyle(
+                                    fontWeight: pw.FontWeight.bold,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ),
+                              pw.Container(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(
+                                  contractorDetails['email'] ?? 'Unknown',
+                                  style: const pw.TextStyle(fontSize: 9),
+                                ),
+                              ),
+                            ],
+                          ),
+                          pw.TableRow(
+                            children: [
+                              pw.Container(
+                                padding: const pw.EdgeInsets.all(4),
+                                color: PdfColor.fromHex('#e8f4fd'),
+                                child: pw.Text(
+                                  'Contractor Phone',
+                                  style: pw.TextStyle(
+                                    fontWeight: pw.FontWeight.bold,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ),
+                              pw.Container(
+                                padding: const pw.EdgeInsets.all(4),
+                                child: pw.Text(
+                                  contractorDetails['phone'] ?? 'Unknown',
+                                  style: const pw.TextStyle(fontSize: 9),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 10),
+
               // Operational Test Section
               pw.Container(
                 child: pw.Column(
@@ -171,17 +316,17 @@ class SiteReportGenerator {
                       level: 1,
                       text: 'Operational Test',
                       textStyle: pw.TextStyle(
-                        fontSize: 16,
+                        fontSize: 12,
                         fontWeight: pw.FontWeight.bold,
                         color: PdfColors.blue,
                       ),
                     ),
-                    pw.SizedBox(height: 5),
+                    pw.SizedBox(height: 3),
                     _buildOperationalTestsTable(tests),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 20),
+              pw.SizedBox(height: 10),
 
               // Engine Inspection Section
               pw.Container(
@@ -192,17 +337,17 @@ class SiteReportGenerator {
                       level: 1,
                       text: 'Engine Inspection',
                       textStyle: pw.TextStyle(
-                        fontSize: 16,
+                        fontSize: 12,
                         fontWeight: pw.FontWeight.bold,
                         color: PdfColors.blue,
                       ),
                     ),
-                    pw.SizedBox(height: 5),
+                    pw.SizedBox(height: 3),
                     _buildEngineInspectionsTable(inspections),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 20),
+              pw.SizedBox(height: 10),
 
               // Site Description Section
               pw.Container(
@@ -213,44 +358,24 @@ class SiteReportGenerator {
                       level: 1,
                       text: 'Site Description',
                       textStyle: pw.TextStyle(
-                        fontSize: 16,
+                        fontSize: 12,
                         fontWeight: pw.FontWeight.bold,
                         color: PdfColors.blue,
                       ),
                     ),
-                    pw.SizedBox(height: 5),
+                    pw.SizedBox(height: 3),
                     pw.Text(
                       siteDescription,
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 20),
+              pw.SizedBox(height: 10),
 
-              // Only include pumps section if assigned to pumps_floor
-              if (assignedSection == 'pumps_floor') ...[
-                pw.Container(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Header(
-                        level: 1,
-                        text: 'Pumps Information',
-                        textStyle: pw.TextStyle(
-                          fontSize: 16,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.blue,
-                        ),
-                      ),
-                      pw.SizedBox(height: 5),
-                      ..._buildPumpsTables(),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 20),
-
-                // Add Floor Components Section right after Pumps Information
+              // Only include floor section if assigned to floor
+              if (assignedSection == 'floor') ...[
+                // Add Floor Components Section
                 if (floorComponents.isNotEmpty) ...[
                   pw.Container(
                     child: pw.Column(
@@ -260,17 +385,17 @@ class SiteReportGenerator {
                           level: 1,
                           text: 'Floor Components',
                           textStyle: pw.TextStyle(
-                            fontSize: 16,
+                            fontSize: 12,
                             fontWeight: pw.FontWeight.bold,
                             color: PdfColors.blue,
                           ),
                         ),
-                        pw.SizedBox(height: 5),
+                        pw.SizedBox(height: 3),
                         ...floorComponents,
                       ],
                     ),
                   ),
-                  pw.SizedBox(height: 20),
+                  pw.SizedBox(height: 10),
                 ],
               ],
 
@@ -312,24 +437,24 @@ class SiteReportGenerator {
               level: 1,
               text: 'Site Description',
               textStyle: pw.TextStyle(
-                fontSize: 16,
+                fontSize: 12,
                 fontWeight: pw.FontWeight.bold,
                 color: PdfColors.blue,
               ),
             ),
-            pw.SizedBox(height: 5),
+            pw.SizedBox(height: 3),
             pw.Text(
               siteDescription ?? 'No description available',
-              style: const pw.TextStyle(fontSize: 10),
+              style: const pw.TextStyle(fontSize: 8),
             ),
           ],
         ),
       ),
-      pw.SizedBox(height: 20),
+      pw.SizedBox(height: 10),
     ];
 
     // Add sections based on assigned section or if contractor
-    if (assignedSection == null || assignedSection == 'pumps_floor') {
+    if (assignedSection == null || assignedSection == 'floor') {
       // Add Operational Test Section
       reportContent.addAll([
         pw.Container(
@@ -338,64 +463,42 @@ class SiteReportGenerator {
             children: [
               pw.Header(
                 level: 1,
-                text: 'Operational Test',
+                text: 'Operational Tests',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               _buildOperationalTestsTable(tests),
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 10),
 
-        // Add Engine Inspection Section
         pw.Container(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Header(
                 level: 1,
-                text: 'Engine Inspection',
+                text: 'Engine Inspections',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               _buildEngineInspectionsTable(inspections),
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
-
-        // Add Pumps Information Section
-        pw.Container(
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Header(
-                level: 1,
-                text: 'Pumps Information',
-                textStyle: pw.TextStyle(
-                  fontSize: 16,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.blue,
-                ),
-              ),
-              pw.SizedBox(height: 5),
-              ..._buildPumpsTables(),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 10),
       ]);
 
-      // Add Floor Components Section right after Pumps Information
+      // Add Floor Components Section
       if (floorComponents.isNotEmpty) {
         reportContent.add(
           pw.Container(
@@ -406,18 +509,18 @@ class SiteReportGenerator {
                   level: 1,
                   text: 'Floor Components',
                   textStyle: pw.TextStyle(
-                    fontSize: 16,
+                    fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.blue,
                   ),
                 ),
-                pw.SizedBox(height: 5),
+                pw.SizedBox(height: 3),
                 ...floorComponents,
               ],
             ),
           ),
         );
-        reportContent.add(pw.SizedBox(height: 20));
+        reportContent.add(pw.SizedBox(height: 10));
       }
     }
 
@@ -432,18 +535,18 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Building Accessories',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               buildingAccessoriesTable,
             ],
           ),
         ),
       );
-      reportContent.add(pw.SizedBox(height: 20));
+      reportContent.add(pw.SizedBox(height: 10));
 
       // Add Custom Building Accessories Section
       reportContent.add(
@@ -455,18 +558,18 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Custom Building Accessories',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               customBuildingAccessoriesTable,
             ],
           ),
         ),
       );
-      reportContent.add(pw.SizedBox(height: 20));
+      reportContent.add(pw.SizedBox(height: 10));
 
       // Add Fire Alarm Components Section
       reportContent.add(
@@ -478,18 +581,18 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Fire Alarm Components',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               fireAlarmTable,
             ],
           ),
         ),
       );
-      reportContent.add(pw.SizedBox(height: 20));
+      reportContent.add(pw.SizedBox(height: 10));
     }
 
     return reportContent;
@@ -502,8 +605,8 @@ class SiteReportGenerator {
       // Add floor header
       components.add(
         pw.Container(
-          margin: const pw.EdgeInsets.only(bottom: 5),
-          padding: const pw.EdgeInsets.all(8),
+          margin: const pw.EdgeInsets.only(bottom: 3),
+          padding: const pw.EdgeInsets.all(4),
           decoration: pw.BoxDecoration(
             color: PdfColors.blue50,
             borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
@@ -511,7 +614,7 @@ class SiteReportGenerator {
           child: pw.Text(
             floor.floorType,
             style: pw.TextStyle(
-              fontSize: 14,
+              fontSize: 10,
               fontWeight: pw.FontWeight.bold,
               color: PdfColors.blue900,
             ),
@@ -559,13 +662,13 @@ class SiteReportGenerator {
         final sprinklerZCVs = await supabaseService.getSprinklerZCVsByFloorId(
           floor.id,
         );
-        final boosterPumps = await supabaseService.getBoosterPumps(floor.id);
+        // Booster pumps removed
 
         // Combine all components
         final allComponents = <Map<String, dynamic>>[];
 
         // Only add components based on assignedSection
-        if (assignedSection == null || assignedSection == 'pumps_floor') {
+        if (assignedSection == null || assignedSection == 'floor') {
           allComponents.addAll([
             ...hydrantValves.map(
               (c) => {
@@ -679,14 +782,7 @@ class SiteReportGenerator {
                 'updated_at': c.updatedAt?.toString().split('.')[0] ?? 'N/A',
               },
             ),
-            ...boosterPumps.map(
-              (c) => {
-                'type': 'Booster Pump',
-                'status': c.status,
-                'note': c.note,
-                'updated_at': c.updatedAt?.toString().split('.')[0] ?? 'N/A',
-              },
-            ),
+            // Booster pumps removed
           ]);
         }
 
@@ -805,21 +901,21 @@ class SiteReportGenerator {
               decoration: pw.BoxDecoration(color: PdfColors.grey100),
               children: [
                 pw.Padding(
-                  padding: const pw.EdgeInsets.all(4),
+                  padding: const pw.EdgeInsets.all(2),
                   child: pw.Text(
                     row[0],
                     style: pw.TextStyle(
-                      fontSize: 10,
+                      fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
                       color: PdfColors.blue,
                     ),
                   ),
                 ),
                 pw.Padding(
-                  padding: const pw.EdgeInsets.all(4),
+                  padding: const pw.EdgeInsets.all(2),
                   child: pw.Text(
                     row[1],
-                    style: const pw.TextStyle(fontSize: 10),
+                    style: const pw.TextStyle(fontSize: 8),
                   ),
                 ),
               ],
@@ -829,81 +925,8 @@ class SiteReportGenerator {
   }
 
   List<pw.Widget> _buildPumpsTables() {
-    final pumpWidgets = <pw.Widget>[];
-
-    for (final pump in pumps) {
-      final isWorking = pump.status.toLowerCase() == 'working';
-
-      pumpWidgets.add(
-        pw.Container(
-          margin: const pw.EdgeInsets.only(bottom: 20),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey300),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Container(
-                padding: const pw.EdgeInsets.all(10),
-                decoration: pw.BoxDecoration(
-                  color: isWorking ? PdfColors.green100 : PdfColors.red100,
-                  borderRadius: const pw.BorderRadius.only(
-                    topLeft: pw.Radius.circular(5),
-                    topRight: pw.Radius.circular(5),
-                  ),
-                ),
-                child: pw.Text(
-                  pump.name,
-                  style: pw.TextStyle(
-                    fontSize: 16,
-                    fontWeight: pw.FontWeight.bold,
-                    color: isWorking ? PdfColors.green900 : PdfColors.red900,
-                  ),
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(15),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    _buildPdfInfoTable([
-                      ['Status', pump.status],
-                      ['Mode', pump.mode],
-                      ['Operational Status', pump.operationalStatus],
-                      ['Start Pressure', '${pump.startPressure} kg/cm²'],
-                      ['Stop Pressure', '${pump.stopPressure} kg/cm²'],
-                      ['Suction Valve', pump.suctionValve],
-                      ['Delivery Valve', pump.deliveryValve],
-                      ['Pressure Gauge', pump.pressureGauge],
-                      ['Capacity', '${pump.capacity} LPM'],
-                      ['Head', '${pump.head} meters'],
-                      ['Rated Power', '${pump.ratedPower} kW'],
-                    ]),
-                    if (pump.comments?.isNotEmpty ?? false) ...[
-                      pw.SizedBox(height: 10),
-                      pw.Text(
-                        'Comments:',
-                        style: pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.blue,
-                        ),
-                      ),
-                      pw.Text(
-                        pump.comments!,
-                        style: const pw.TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return pumpWidgets;
+    // Pump tables removed
+    return <pw.Widget>[];
   }
 
   Future<pw.Widget> _buildBuildingAccessoriesTable() async {
@@ -929,40 +952,44 @@ class SiteReportGenerator {
             decoration: pw.BoxDecoration(color: PdfColors.green100),
             children: [
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Accessory Type',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Status',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Last Updated',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Notes',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
@@ -973,63 +1000,85 @@ class SiteReportGenerator {
           pw.TableRow(
             children: [
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('Fire Alarm Panel'),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
-                  accessories.fireAlarmPanelStatus ?? 'Not Working',
+                  'Fire Alarm Panel',
+                  style: const pw.TextStyle(fontSize: 8),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(
+                  accessories.fireAlarmPanelStatus ?? 'Working',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   accessories.updatedAt?.toString().split('.')[0] ?? '',
+                  style: const pw.TextStyle(fontSize: 8),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(accessories.notes ?? ''),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(
+                  accessories.notes ?? '',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
               ),
             ],
           ),
           pw.TableRow(
             children: [
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('Repeater Panel'),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
-                  accessories.repeaterPanelStatus ?? 'Not Working',
+                  'Repeater Panel',
+                  style: const pw.TextStyle(fontSize: 8),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(
+                  accessories.repeaterPanelStatus ?? 'Working',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
+              ),
+              pw.Padding(
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   accessories.updatedAt?.toString().split('.')[0] ?? '',
+                  style: const pw.TextStyle(fontSize: 8),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(accessories.notes ?? ''),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(
+                  accessories.notes ?? '',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
               ),
             ],
           ),
           pw.TableRow(
             children: [
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('Battery'),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(
+                  'Battery',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(accessories.batteryStatus ?? 'Not Working'),
+                padding: const pw.EdgeInsets.all(4),
+                child: pw.Text(
+                  accessories.batteryStatus ?? 'Working',
+                  style: const pw.TextStyle(fontSize: 8),
+                ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   accessories.updatedAt?.toString().split('.')[0] ?? '',
                 ),
@@ -1049,7 +1098,7 @@ class SiteReportGenerator {
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
                 child: pw.Text(
-                  accessories.liftIntegrationRelayStatus ?? 'Not Working',
+                  accessories.liftIntegrationRelayStatus ?? 'Working',
                 ),
               ),
               pw.Padding(
@@ -1073,7 +1122,7 @@ class SiteReportGenerator {
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
                 child: pw.Text(
-                  accessories.accessIntegrationStatus ?? 'Not Working',
+                  accessories.accessIntegrationStatus ?? 'Working',
                 ),
               ),
               pw.Padding(
@@ -1097,7 +1146,7 @@ class SiteReportGenerator {
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
                 child: pw.Text(
-                  accessories.pressFanIntegrationStatus ?? 'Not Working',
+                  accessories.pressFanIntegrationStatus ?? 'Working',
                 ),
               ),
               pw.Padding(
@@ -1251,12 +1300,12 @@ class SiteReportGenerator {
                     pw.Text(
                       'Fire Alarm Components:',
                       style: pw.TextStyle(
-                        fontSize: 12,
+                        fontSize: 9,
                         fontWeight: pw.FontWeight.bold,
                         color: PdfColors.red800,
                       ),
                     ),
-                    pw.SizedBox(height: 5),
+                    pw.SizedBox(height: 3),
                     pw.Table(
                       border: pw.TableBorder.all(color: PdfColors.grey300),
                       columnWidths: {
@@ -1272,41 +1321,41 @@ class SiteReportGenerator {
                           ),
                           children: [
                             pw.Padding(
-                              padding: const pw.EdgeInsets.all(4),
+                              padding: const pw.EdgeInsets.all(2),
                               child: pw.Text(
                                 'Component Type',
                                 style: pw.TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 8,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
                             ),
                             pw.Padding(
-                              padding: const pw.EdgeInsets.all(4),
+                              padding: const pw.EdgeInsets.all(2),
                               child: pw.Text(
                                 'Status',
                                 style: pw.TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 8,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
                             ),
                             pw.Padding(
-                              padding: const pw.EdgeInsets.all(4),
+                              padding: const pw.EdgeInsets.all(2),
                               child: pw.Text(
                                 'Notes',
                                 style: pw.TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 8,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
                             ),
                             pw.Padding(
-                              padding: const pw.EdgeInsets.all(4),
+                              padding: const pw.EdgeInsets.all(2),
                               child: pw.Text(
                                 'Last Updated',
                                 style: pw.TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 8,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
@@ -1318,34 +1367,34 @@ class SiteReportGenerator {
                               (component) => pw.TableRow(
                                 children: [
                                   pw.Padding(
-                                    padding: const pw.EdgeInsets.all(4),
+                                    padding: const pw.EdgeInsets.all(2),
                                     child: pw.Text(
                                       component['type'] as String? ?? '',
-                                      style: const pw.TextStyle(fontSize: 10),
+                                      style: const pw.TextStyle(fontSize: 8),
                                     ),
                                   ),
                                   pw.Padding(
-                                    padding: const pw.EdgeInsets.all(4),
+                                    padding: const pw.EdgeInsets.all(2),
                                     child: pw.Text(
                                       component['status'] as String? ?? '',
-                                      style: const pw.TextStyle(fontSize: 10),
+                                      style: const pw.TextStyle(fontSize: 8),
                                     ),
                                   ),
                                   pw.Padding(
-                                    padding: const pw.EdgeInsets.all(4),
+                                    padding: const pw.EdgeInsets.all(2),
                                     child: pw.Text(
                                       component['note'] as String? ?? '',
-                                      style: const pw.TextStyle(fontSize: 10),
+                                      style: const pw.TextStyle(fontSize: 8),
                                     ),
                                   ),
                                   pw.Padding(
-                                    padding: const pw.EdgeInsets.all(4),
+                                    padding: const pw.EdgeInsets.all(2),
                                     child: pw.Text(
                                       component['updated_at']?.toString().split(
                                             '.',
                                           )[0] ??
                                           'N/A',
-                                      style: const pw.TextStyle(fontSize: 10),
+                                      style: const pw.TextStyle(fontSize: 8),
                                     ),
                                   ),
                                 ],
@@ -1404,40 +1453,44 @@ class SiteReportGenerator {
             decoration: pw.BoxDecoration(color: PdfColors.green100),
             children: [
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Accessory Name',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Status',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Last Updated',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
                 ),
               ),
               pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Text(
                   'Notes',
                   style: pw.TextStyle(
+                    fontSize: 8,
                     fontWeight: pw.FontWeight.bold,
                     color: PdfColors.green900,
                   ),
@@ -1450,23 +1503,33 @@ class SiteReportGenerator {
                 (accessory) => pw.TableRow(
                   children: [
                     pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(accessory['accessory_name'] ?? 'N/A'),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(accessory['status'] ?? 'Not Working'),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
+                      padding: const pw.EdgeInsets.all(4),
                       child: pw.Text(
-                        accessory['updated_at']?.toString().split('.')[0] ??
-                            'N/A',
+                        accessory['accessory_name'] ?? 'N/A',
+                        style: const pw.TextStyle(fontSize: 8),
                       ),
                     ),
                     pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(accessory['notes'] ?? ''),
+                      padding: const pw.EdgeInsets.all(4),
+                      child: pw.Text(
+                        accessory['status'] ?? 'Working',
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(4),
+                      child: pw.Text(
+                        accessory['updated_at']?.toString().split('.')[0] ??
+                            'N/A',
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.all(4),
+                      child: pw.Text(
+                        accessory['notes'] ?? '',
+                        style: const pw.TextStyle(fontSize: 8),
+                      ),
                     ),
                   ],
                 ),
@@ -1498,41 +1561,41 @@ class SiteReportGenerator {
           decoration: pw.BoxDecoration(color: PdfColors.grey100),
           children: [
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Test Type',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Standard Value',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Observed Value',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Comments',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
@@ -1544,31 +1607,31 @@ class SiteReportGenerator {
               (test) => pw.TableRow(
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       test['test_type']?.toString() ?? '',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       '${test['standard_value']?.toString() ?? ''} kg/cm²',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       '${test['observed_value']?.toString() ?? ''} kg/cm²',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       test['comments']?.toString() ?? '',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                 ],
@@ -1598,31 +1661,31 @@ class SiteReportGenerator {
           decoration: pw.BoxDecoration(color: PdfColors.grey100),
           children: [
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Component',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Status',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
             ),
             pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
+              padding: const pw.EdgeInsets.all(4),
               child: pw.Text(
                 'Comments',
                 style: pw.TextStyle(
-                  fontSize: 10,
+                  fontSize: 8,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
@@ -1634,24 +1697,24 @@ class SiteReportGenerator {
               (inspection) => pw.TableRow(
                 children: [
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       inspection['inspection_type']?.toString() ?? '',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       inspection['value']?.toString() ?? '',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                   pw.Padding(
-                    padding: const pw.EdgeInsets.all(8),
+                    padding: const pw.EdgeInsets.all(4),
                     child: pw.Text(
                       inspection['comments']?.toString() ?? '',
-                      style: const pw.TextStyle(fontSize: 10),
+                      style: const pw.TextStyle(fontSize: 8),
                     ),
                   ),
                 ],
@@ -1683,17 +1746,17 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Building Accessories',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               buildingAccessoriesTable,
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 10),
 
         // Custom Building Accessories Section
         pw.Container(
@@ -1704,17 +1767,17 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Custom Building Accessories',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               customBuildingAccessoriesTable,
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 10),
 
         // Fire Alarm System Section
         pw.Container(
@@ -1725,23 +1788,23 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Fire Alarm System',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               fireAlarmTable,
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 10),
 
         // Floor Components Section
         ...floorComponents,
       ]);
-    } else if (assignedSection == 'pumps_floor') {
-      // For pumps_floor section, only include floor components
+    } else if (assignedSection == 'floor') {
+      // For floor section, only include floor components
       filteredComponents.addAll(floorComponents);
     } else if (assignedSection == 'building_fire') {
       // For building_fire section, include building accessories and fire alarm
@@ -1754,17 +1817,17 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Building Accessories',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               buildingAccessoriesTable,
             ],
           ),
         ),
-        pw.SizedBox(height: 20),
+        pw.SizedBox(height: 10),
         pw.Container(
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1773,12 +1836,12 @@ class SiteReportGenerator {
                 level: 1,
                 text: 'Fire Alarm System',
                 textStyle: pw.TextStyle(
-                  fontSize: 16,
+                  fontSize: 12,
                   fontWeight: pw.FontWeight.bold,
                   color: PdfColors.blue,
                 ),
               ),
-              pw.SizedBox(height: 5),
+              pw.SizedBox(height: 3),
               fireAlarmTable,
             ],
           ),

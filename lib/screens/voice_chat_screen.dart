@@ -1,18 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../controllers/pump_controller.dart';
 import '../services/openai_service.dart';
 
 class VoiceChatScreen extends StatefulWidget {
-  final String pumpId;
+  final String itemId;
   final String siteId;
-  final String pumpName;
+  final String itemName;
 
   const VoiceChatScreen({
     super.key,
-    required this.pumpId,
+    required this.itemId,
     required this.siteId,
-    required this.pumpName,
+    required this.itemName,
   });
 
   @override
@@ -20,7 +19,6 @@ class VoiceChatScreen extends StatefulWidget {
 }
 
 class _VoiceChatScreenState extends State<VoiceChatScreen> {
-  late PumpController _pumpController;
   final List<ChatMessage> _chatMessages = [];
   final TextEditingController _textController = TextEditingController();
   bool _isListening = false;
@@ -34,12 +32,6 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   // Queue for conversation steps
   final List<String> _updateQueue = [
     'status',
-    'mode',
-    'start_pressure',
-    'stop_pressure',
-    'suction_valve',
-    'delivery_valve',
-    'pressure_gauge',
     'summary',
   ];
   int _currentQueueIndex = 0;
@@ -47,12 +39,6 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   @override
   void initState() {
     super.initState();
-    _pumpController = PumpController(
-      pumpId: widget.pumpId,
-      siteId: widget.siteId,
-    );
-    _pumpController.addListener(_onPumpControllerChanged);
-
     _openAIService = OpenAIService();
     _initServices();
     _startConversation();
@@ -60,17 +46,10 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
   @override
   void dispose() {
-    _pumpController.removeListener(_onPumpControllerChanged);
     _textController.dispose();
     _listeningTimer?.cancel();
     _openAIService.dispose();
     super.dispose();
-  }
-
-  void _onPumpControllerChanged() {
-    setState(() {
-      // Update UI when pump changes dynamically
-    });
   }
 
   Future<void> _initServices() async {
@@ -87,14 +66,7 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   void _startConversation() async {
     // Prepare context information for the AI
     final context = {
-      'pump_name': widget.pumpName,
-      'status': _pumpController.status,
-      'mode': _pumpController.mode,
-      'start_pressure': _pumpController.startPressure,
-      'stop_pressure': _pumpController.stopPressure,
-      'suction_valve': _pumpController.suctionValve,
-      'delivery_valve': _pumpController.deliveryValve,
-      'pressure_gauge': _pumpController.pressureGauge,
+      'item_name': widget.itemName,
     };
 
     String welcomeMessage = await _openAIService.generateGreeting(context);
@@ -163,23 +135,13 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
     // Prepare context for AI response
     final context = {
-      'pump_name': widget.pumpName,
-      'status': _pumpController.status,
-      'mode': _pumpController.mode,
-      'start_pressure': _pumpController.startPressure,
-      'stop_pressure': _pumpController.stopPressure,
-      'suction_valve': _pumpController.suctionValve,
-      'delivery_valve': _pumpController.deliveryValve,
-      'pressure_gauge': _pumpController.pressureGauge,
+      'item_name': widget.itemName,
       'current_step': _currentStep,
       'user_input': userInput,
     };
 
     // Process user input and get response
     final response = await _openAIService.processUserInput(context);
-
-    // Handle field updates based on AI response
-    _updatePumpFields(response);
 
     _addMessage(ChatMessage(text: response.botReply, isUser: false));
 
@@ -220,9 +182,8 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   Future<void> _askNextQuestion() async {
     // Generate question for current step
     final context = {
-      'pump_name': widget.pumpName,
+      'item_name': widget.itemName,
       'current_field': _currentStep,
-      'current_value': _getCurrentFieldValue(),
     };
 
     String question = await _openAIService.generateFieldQuestion(context);
@@ -233,82 +194,10 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
     _startListening();
   }
 
-  String _getCurrentFieldValue() {
-    switch (_currentStep) {
-      case 'status':
-        return _pumpController.status;
-      case 'mode':
-        return _pumpController.mode;
-      case 'start_pressure':
-        return '${_pumpController.startPressure} kg/cm²';
-      case 'stop_pressure':
-        return _pumpController.stopPressure;
-      case 'suction_valve':
-        return _pumpController.suctionValve;
-      case 'delivery_valve':
-        return _pumpController.deliveryValve;
-      case 'pressure_gauge':
-        return _pumpController.pressureGauge;
-      default:
-        return '';
-    }
-  }
-
-  void _updatePumpFields(AIResponse response) {
-    // Update pump fields based on AI response
-    if (response.fieldUpdates.containsKey('status')) {
-      _pumpController.updateStatus(response.fieldUpdates['status']!);
-    }
-
-    if (response.fieldUpdates.containsKey('mode')) {
-      _pumpController.updateMode(response.fieldUpdates['mode']!);
-    }
-
-    if (response.fieldUpdates.containsKey('start_pressure')) {
-      try {
-        final pressure = double.parse(response.fieldUpdates['start_pressure']!);
-        _pumpController.updateStartPressure(pressure);
-      } catch (e) {
-        print('Error parsing start pressure: $e');
-      }
-    }
-
-    if (response.fieldUpdates.containsKey('stop_pressure')) {
-      _pumpController.updateStopPressure(
-        response.fieldUpdates['stop_pressure']!,
-      );
-    }
-
-    if (response.fieldUpdates.containsKey('suction_valve')) {
-      _pumpController.updateSuctionValve(
-        response.fieldUpdates['suction_valve']!,
-      );
-    }
-
-    if (response.fieldUpdates.containsKey('delivery_valve')) {
-      _pumpController.updateDeliveryValve(
-        response.fieldUpdates['delivery_valve']!,
-      );
-    }
-
-    if (response.fieldUpdates.containsKey('pressure_gauge')) {
-      _pumpController.updatePressureGauge(
-        response.fieldUpdates['pressure_gauge']!,
-      );
-    }
-  }
-
   void _finishConversation() async {
     // Generate summary
     final context = {
-      'pump_name': widget.pumpName,
-      'status': _pumpController.status,
-      'mode': _pumpController.mode,
-      'start_pressure': _pumpController.startPressure,
-      'stop_pressure': _pumpController.stopPressure,
-      'suction_valve': _pumpController.suctionValve,
-      'delivery_valve': _pumpController.deliveryValve,
-      'pressure_gauge': _pumpController.pressureGauge,
+      'item_name': widget.itemName,
     };
 
     String summary = await _openAIService.generateSummary(context);
@@ -341,47 +230,11 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
     );
   }
 
-  Widget _buildDynamicFieldDisplay() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Status: ${_pumpController.status}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Mode: ${_pumpController.mode}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Start Pressure: ${_pumpController.startPressure} kg/cm²',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Stop Pressure: ${_pumpController.stopPressure}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Suction Valve: ${_pumpController.suctionValve}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Delivery Valve: ${_pumpController.deliveryValve}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Pressure Gauge: ${_pumpController.pressureGauge}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Voice Chat - ${widget.pumpName}'),
+        title: Text('Voice Chat - ${widget.itemName}'),
         actions: [
           IconButton(
             icon: Icon(_isListening ? Icons.mic : Icons.mic_off),
@@ -418,8 +271,6 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
               ),
             ),
             const Divider(),
-            _buildDynamicFieldDisplay(),
-            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -473,4 +324,16 @@ class ChatMessage {
   final bool isUser;
 
   ChatMessage({required this.text, required this.isUser});
+}
+
+class AIResponse {
+  final String botReply;
+  final String nextAction;
+  final Map<String, String> fieldUpdates;
+
+  AIResponse({
+    required this.botReply,
+    required this.nextAction,
+    required this.fieldUpdates,
+  });
 }

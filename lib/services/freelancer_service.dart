@@ -66,22 +66,30 @@ class FreelancerService {
   // Add a new freelancer with the current contractor ID
   Future<Freelancer?> addFreelancer(Map<String, dynamic> freelancerData) async {
     try {
+      print('DEBUG: FreelancerService.addFreelancer - Starting');
       final contractorId = await getCurrentContractorId();
+      print('DEBUG: FreelancerService.addFreelancer - Got contractorId: $contractorId');
+      
       if (contractorId == null) {
+        print('DEBUG: FreelancerService.addFreelancer - No contractor ID found');
         throw Exception('No contractor ID found');
       }
 
       // Add contractor_id to the freelancer data
       freelancerData['contractor_id'] = contractorId;
+      print('DEBUG: FreelancerService.addFreelancer - Added contractor_id to data');
 
+      print('DEBUG: FreelancerService.addFreelancer - Inserting into database: ${freelancerData.toString()}');
       final response = await _supabase
           .from('freelancers')
           .insert(freelancerData)
           .select()
           .single();
+      print('DEBUG: FreelancerService.addFreelancer - Database response: $response');
 
       return Freelancer.fromJson(response);
     } catch (e) {
+      print('DEBUG: FreelancerService.addFreelancer - Error: $e');
       print('Error adding freelancer: $e');
       return null;
     }

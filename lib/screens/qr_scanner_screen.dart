@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../models/site.dart';
 import '../services/supabase_service.dart';
-import 'pump_details_screen.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final Site site;
@@ -39,12 +38,16 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     });
 
     try {
-      final pump = await _supabaseService.getPumpByUid(barcode.rawValue!);
-
+      // QR code was scanned successfully
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => PumpDetailsScreen(pump: pump)),
+      
+      // Show a success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('QR code scanned successfully')),
       );
+      
+      // Navigate back
+      Navigator.of(context).pop();
 
       if (!mounted) return;
       setState(() {

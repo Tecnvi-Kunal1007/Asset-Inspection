@@ -1,6 +1,15 @@
+
+import 'dart:typed_data';
+import 'dart:ui';
+import 'dart:convert';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/premise.dart';
+import '../models/premise_product.dart';
+import '../models/section_product.dart';
+import '../models/subsection_product.dart';
+import '../models/section.dart';
 import '../models/site.dart';
-import '../models/pump.dart';
 import '../models/floor.dart';
 import '../models/hydrant_valve.dart';
 import '../models/hydrant_ug.dart';
@@ -24,15 +33,26 @@ import '../models/flow_switch.dart';
 import '../models/monitor_module.dart';
 import 'dart:io';
 import 'package:uuid/uuid.dart';
+import '../models/subsection.dart';
 import '../models/telephone_jack.dart';
 import '../models/speaker.dart';
 import '../models/building_accessories.dart';
 import '../models/area.dart';
-import '../models/booster_pump.dart';
+
 
 class SupabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final Uuid _uuid = const Uuid();
+  
+  // Product Operations by Subsection
+  Future<List<Product>> getProductsBySubsectionId(String subsectionId) async {
+    final response = await _supabase
+        .from('subsection_products')
+        .select()
+        .eq('subsection_id', subsectionId);
+    
+    return response.map((json) => Product.fromJson(json)).toList();
+  }
 
   // Site Operations
   Future<Site> createSite(Site site) async {
@@ -134,129 +154,7 @@ class SupabaseService {
     return (response as List).map((json) => Site.fromJson(json)).toList();
   }
 
-  // Pump Operations
-  Future<List<Pump>> createDefaultPumps(String siteId) async {
-    final pumpNames = [
-      'Hydrant Jockey',
-      'Hydrant Main',
-      'Sprinkler Jockey',
-      'Sprinkler Main',
-      'Standby Pump',
-      'DD Pump',
-    ];
 
-    final List<Pump> createdPumps = [];
-
-    for (final name in pumpNames) {
-      if (name == 'Booster Pump') continue; // Skip booster pumps
-      final uid = _uuid.v4();
-      final pump = Pump(
-        id: _uuid.v4(),
-        siteId: siteId,
-        name: name,
-        capacity: 0,
-        head: 0,
-        ratedPower: 0,
-        uid: uid,
-        qrImageUrl: '', // Will be updated after QR code generation
-        status: 'Not Working',
-        mode: 'Manual',
-        startPressure: 0.0,
-        stopPressure: '0',
-        suctionValve: 'Closed',
-        deliveryValve: 'Closed',
-        pressureGauge: 'Not Working',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        operationalStatus: 'Non-Operating',
-        comments: 'Please enter comments',
-      );
-
-      final response =
-          await _supabase.from('pumps').insert(pump.toJson()).select().single();
-      createdPumps.add(Pump.fromJson(response));
-    }
-
-    return createdPumps;
-  }
-
-  Future<List<Pump>> getPumpsBySiteId(String siteId) async {
-    final response = await _supabase
-        .from('pumps')
-        .select()
-        .eq('site_id', siteId)
-        .not(
-          'name',
-          'ilike',
-          'Booster Pump%',
-        ); // Exclude both booster pump 1 and 2
-    return (response as List).map((json) => Pump.fromJson(json)).toList();
-  }
-
-  Future<Pump> updatePump(Pump pump) async {
-    try {
-      final pumpData = pump.toJson();
-
-      // Ensure numeric fields are properly formatted
-      pumpData['capacity'] = pump.capacity;
-      pumpData['head'] = pump.head;
-      pumpData['rated_power'] = pump.ratedPower;
-      pumpData['start_pressure'] = pump.startPressure;
-      pumpData['stop_pressure'] = pump.stopPressure;
-
-      // Add updated_at timestamp
-      pumpData['updated_at'] = DateTime.now().toIso8601String();
-
-      // Calculate and update operational status based on valve and pressure gauge states
-      final operationalStatus = pump.calculateOperationalStatus();
-      pumpData['operational_status'] = operationalStatus;
-
-      // Ensure comments is properly handled (can be null)
-      pumpData['comments'] = pump.comments;
-
-      print('Updating pump with data: $pumpData');
-
-      final response =
-          await _supabase
-              .from('pumps')
-              .update(pumpData)
-              .eq('id', pump.id)
-              .select()
-              .single();
-
-      return Pump.fromJson(response);
-    } catch (e) {
-      print('Error updating pump: $e');
-      rethrow;
-    }
-  }
-
-  Future<Pump> getPumpByUid(String uid) async {
-    final response =
-        await _supabase.from('pumps').select().eq('uid', uid).single();
-    return Pump.fromJson(response);
-  }
-
-  Future<List<Map<String, dynamic>>> getPumpsForSite(String siteId) async {
-    final response = await _supabase
-        .from('pumps')
-        .select()
-        .eq('site_id', siteId);
-    return response;
-  }
-
-  Future<Map<String, dynamic>> getPumpDetails(String pumpId) async {
-    final response =
-        await _supabase.from('pumps').select().eq('id', pumpId).single();
-    return response;
-  }
-
-  Future<void> updatePumpDetails(
-    String pumpId,
-    Map<String, dynamic> details,
-  ) async {
-    await _supabase.from('pumps').update(details).eq('id', pumpId);
-  }
 
   // QR Code Storage
   Future<String> uploadQrCode(String pumpId, File qrCodeFile) async {
@@ -268,7 +166,11 @@ class SupabaseService {
     return _supabase.storage.from('qr_codes').getPublicUrl(fileName);
   }
 
-  Future<String> uploadSocietyReport(String siteId, File reportFile) async {
+  Future<String> uploadSocietyReport(
+    String siteId,
+    File reportFile, {
+    String? reportName,
+  }) async {
     final fileExt = reportFile.path.split('.').last;
     final fileName =
         '$siteId-${DateTime.now().millisecondsSinceEpoch}.$fileExt';
@@ -280,7 +182,7 @@ class SupabaseService {
 
     await _supabase.from('site_reports').insert({
       'site_id': siteId,
-      'file_name': fileName,
+      'file_name': reportName ?? fileName,
       'url': publicUrl,
       'uploaded_at': DateTime.now().toIso8601String(),
     });
@@ -1792,12 +1694,12 @@ class SupabaseService {
 
   Future<void> createBuildingAccessories(
     String siteId, {
-    String fireAlarmPanelStatus = 'Not Working',
-    String repeaterPanelStatus = 'Not Working',
-    String batteryStatus = 'Not Working',
-    String liftIntegrationRelayStatus = 'Not Working',
-    String accessIntegrationStatus = 'Not Working',
-    String pressFanIntegrationStatus = 'Not Working',
+    String fireAlarmPanelStatus = 'Working',
+    String repeaterPanelStatus = 'Working',
+    String batteryStatus = 'Working',
+    String liftIntegrationRelayStatus = 'Working',
+    String accessIntegrationStatus = 'Working',
+    String pressFanIntegrationStatus = 'Working',
     String? notes,
   }) async {
     try {
@@ -1834,6 +1736,7 @@ class SupabaseService {
   Future<void> uploadFile(String bucket, String fileName, File file) async {
     await _supabase.storage.from(bucket).upload(fileName, file);
   }
+
 
   String getFileUrl(String bucket, String fileName) {
     return _supabase.storage.from(bucket).getPublicUrl(fileName);
@@ -2010,68 +1913,7 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  // Booster Pump Methods
-  Future<List<BoosterPump>> getBoosterPumps(String floorId) async {
-    try {
-      final response = await _supabase
-          .from('booster_pumps')
-          .select()
-          .eq('floor_id', floorId)
-          .order('created_at', ascending: false);
 
-      return (response as List)
-          .map((json) => BoosterPump.fromJson(json))
-          .toList();
-    } catch (e) {
-      throw Exception('Failed to fetch booster pumps: $e');
-    }
-  }
-
-  Future<void> createBoosterPump(
-    String floorId,
-    String status, {
-    String? note,
-  }) async {
-    try {
-      final now = DateTime.now().toIso8601String();
-      await _supabase.from('booster_pumps').insert({
-        'floor_id': floorId,
-        'status': status.isEmpty ? 'Not Working' : status,
-        'note': note,
-        'created_at': now,
-        'updated_at': now,
-      });
-    } catch (e) {
-      throw Exception('Failed to create booster pump: $e');
-    }
-  }
-
-  Future<void> updateBoosterPump(
-    String id,
-    String status, {
-    String? note,
-  }) async {
-    try {
-      await _supabase
-          .from('booster_pumps')
-          .update({
-            'status': status,
-            'note': note,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', id);
-    } catch (e) {
-      throw Exception('Failed to update booster pump: $e');
-    }
-  }
-
-  Future<void> deleteBoosterPump(String id) async {
-    try {
-      await _supabase.from('booster_pumps').delete().eq('id', id);
-    } catch (e) {
-      throw Exception('Failed to delete booster pump: $e');
-    }
-  }
 
   Future<List<Map<String, dynamic>>> getBuildingAccessories(
     String siteId,
@@ -2102,4 +1944,366 @@ class SupabaseService {
       return [];
     }
   }
+
+  uploadBytes(String s, String fileName, Uint8List uint8list) {}
+
+
+  // qr scanning for the dyanamic premise creation
+
+  Future<String> generateAndUploadQrImage(String premiseId, {String? premiseName}) async {
+    try {
+      // Create a data object that includes both the ID and name
+      final Map<String, dynamic> qrData = {
+        'id': premiseId,
+        'name': premiseName ?? 'Unknown Premise',
+      };
+      
+      // Convert to JSON string for QR code
+      final String qrDataString = jsonEncode(qrData);
+      
+      final qrValidationResult = QrValidator.validate(
+        data: qrDataString,
+        version: QrVersions.auto,
+        errorCorrectionLevel: QrErrorCorrectLevel.M, // Medium error correction for better readability
+      );
+
+      if (qrValidationResult.status != QrValidationStatus.valid) {
+        throw Exception("Invalid QR data for premise: $premiseId");
+      }
+
+      final qrCode = qrValidationResult.qrCode!;
+      final painter = QrPainter.withQr(
+        qr: qrCode,
+        color: const Color(0xFF000000),
+        emptyColor: const Color(0xFFFFFFFF),
+        gapless: true,
+      );
+
+      // Generate QR code image
+      final image = await painter.toImage(300);
+      final ByteData? byteData = await image.toByteData(format: ImageByteFormat.png);
+      if (byteData == null) throw Exception('Failed to generate QR code image');
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      // Upload to Supabase Storage
+      final fileName = 'public/$premiseId.png';
+      
+      // First try to remove any existing file to avoid duplicate errors
+      try {
+        await Supabase.instance.client.storage
+            .from('qr-codes')
+            .remove([fileName]);
+        print('Removed existing QR code file');
+      } catch (e) {
+        // It's okay if the file doesn't exist yet
+        print('No existing QR code file to remove or error removing: $e');
+      }
+      
+      // Now upload the new file
+      await Supabase.instance.client.storage
+          .from('qr-codes')
+          .uploadBinary(fileName, pngBytes, fileOptions: const FileOptions(contentType: 'image/png'));
+
+      // Return public URL
+      final publicUrl = Supabase.instance.client.storage.from('qr-codes').getPublicUrl(fileName);
+      return publicUrl;
+    } catch (e) {
+      print('Error generating or uploading QR code: $e');
+      throw Exception('Failed to generate or upload QR code: $e');
+    }
+  }
+
+
+
+
+
+  final SupabaseClient _client = Supabase.instance.client;
+
+  Future<Premise> createPremise(String contractorId, Map<String, dynamic> data, {required String name, required Map additionalData}) async {
+    try {
+      print('Creating premise for contractor: $contractorId');
+      // Insert the premise with a placeholder qr_url to satisfy NOT NULL
+      final response = await _supabase.from('premises').insert({
+        'contractor_id': contractorId,
+        'name': data['name'],
+        'data': data,
+        'qr_url': 'pending' // Placeholder to satisfy NOT NULL
+      }).select('id, contractor_id, data, contractor(name)').single();
+
+      final premiseId = response['id'] as String;
+      print('Premise created with ID: $premiseId');
+
+      // Generate and upload QR code
+      String qrUrl;
+      try {
+        print('Generating and uploading QR code for premise: $premiseId with name: ${data['name']}');
+        qrUrl = await generateAndUploadQrImage(premiseId, premiseName: data['name']);
+        print('Successfully generated QR URL: $qrUrl');
+      } catch (e) {
+        print('Error generating or uploading QR code for premise $premiseId: $e');
+        qrUrl = 'pending'; // Fallback value
+      }
+
+      // Update the premise with the QR URL
+      print('Updating premise $premiseId with qr_url: $qrUrl');
+      final updateResponse = await _supabase.from('premises').update({
+        'qr_url': qrUrl,
+      }).eq('id', premiseId).select('id, qr_url'); // Select to verify update
+      print('Update response: $updateResponse');
+
+      // Fetch the updated premise
+      final updatedResponse = await _supabase
+          .from('premises')
+          .select('id, contractor_id, data, qr_url, contractor(name)')
+          .eq('id', premiseId)
+          .single();
+
+      final contractor = updatedResponse['contractor'] as Map<String, dynamic>? ?? {'name': 'Unknown'};
+      final premise = Premise.fromMap({
+        ...updatedResponse,
+        'contractor_name': contractor['name'],
+      });
+
+      print('Premise retrieved with QR URL: ${premise.qr_Url}');
+      return premise;
+    } catch (e) {
+      print('Error in createPremise: $e');
+      throw Exception('Failed to create premise: $e');
+    }
+  }
+
+  Future<List<Premise>> getPremises() async {
+    try {
+      final response = await _supabase
+          .from('premises')
+          .select('id, contractor_id, data, contractor(name)')
+          .order('created_at', ascending: false);
+      return response.map((map) {
+        final contractor = map['contractor'] as Map<String, dynamic>? ?? {'name': 'Unknown'};
+        return Premise.fromMap({
+          ...map,
+          'contractor_name': contractor['name'],
+        });
+      }).toList();
+    } catch (e) {
+      throw Exception('Error fetching premises: $e');
+    }
+  }
+
+  Future<void> deletePremise(String id) async {
+    await _supabase.from('premises').delete().eq('id', id);
+  }
+
+  Future<List<Map<String, dynamic>>> getContractors() async {
+    final response = await _supabase.from('contractor').select('id, name');
+    return response as List<Map<String, dynamic>>;
+  }
+
+  Future<List<Section>> getSections(String premiseId) async {
+    final response = await Supabase.instance.client
+        .from('sections')
+        .select()
+        .eq('premise_id', premiseId);
+    return response.map((data) => Section.fromJson(data)).toList();
+  }
+
+  // Additional method to regenerate QR code if needed
+  Future<String> regenerateQrCode(String premiseId) async {
+    try {
+      // First, get the premise details to include the name in the QR code
+      final premiseResponse = await _client
+          .from('premises')
+          .select('id, data')
+          .eq('id', premiseId)
+          .single();
+      
+      final premiseData = premiseResponse['data'] as Map<String, dynamic>;
+      final premiseName = premiseData['name'] as String? ?? 'Unknown Premise';
+      
+      // Generate QR code with premise name included
+      final qrUrl = await generateAndUploadQrImage(premiseId, premiseName: premiseName);
+
+      // Update the premise with the new QR URL
+      await _client
+          .from('premises')
+          .update({'qr_url': qrUrl})
+          .eq('id', premiseId);
+
+      return qrUrl;
+    } catch (e) {
+      print('Error in regenerateQrCode: $e');
+      throw Exception('Failed to regenerate QR code: $e');
+    }
+  }
+
+  // Future<List<Section>> getSections(String premiseId) async {
+  //   final response = await Supabase.instance.client
+  //       .from('sections')
+  //       .select()
+  //       .eq('premise_id', premiseId);
+  //   return response.map((data) => Section.fromJson(data)).toList();
+  // }
+
+  Future<void> createSection(String premiseId, Map<String, dynamic> data) async {
+    await Supabase.instance.client
+        .from('sections')
+        .insert({
+          'premise_id': premiseId, 
+          'name': data['name'],
+          'data': data
+        });
+  }
+
+  Future<void> updateSection(String sectionId, Map<String, dynamic> data) async {
+    await Supabase.instance.client
+        .from('sections')
+        .update({'data': data})
+        .eq('id', sectionId);
+  }
+
+
+
+  // Subsections
+  Future<List<Subsection>> getSubsections(String sectionId) async {
+    try {
+      final response = await _supabase
+          .from('subsections')
+          .select('id, section_id, name, data')
+          .eq('section_id', sectionId)
+          .order('created_at', ascending: false);
+
+      return response.map((map) => Subsection.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('Error fetching subsections: $e');
+    }
+  }
+
+
+  Future<Subsection> createSubsection(String sectionId, Map<String, dynamic> data) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final response = await _supabase
+          .from('subsections')
+          .insert({
+        'section_id': sectionId,
+        'name': data['name'],
+        'data': data,
+      })
+          .select('id, section_id, name, data')
+          .single();
+
+      return Subsection.fromMap(response);
+    } catch (e) {
+      throw Exception('Error creating subsection: $e');
+    }
+  }
+
+
+  // Products
+  Future<List<Product>> getProducts(String subsectionId) async {
+    try {
+      final response = await _supabase
+          .from('subsections_products')
+          .select('id, subsection_id, name, data, created_at')
+          .eq('subsection_id', subsectionId)
+          .order('created_at', ascending: false);
+
+      return response.map((map) => Product.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('Error fetching products: $e');
+    }
+  }
+
+  Future<List<SectionProduct>> getSectionProducts(String sectionId) async {
+    final response = await _supabase
+        .from('section_products')
+        .select()
+        .eq('section_id', sectionId)
+        .order('created_at', ascending: false);
+
+    if (response != null && response is List) {
+      return response
+          .map((map) => SectionProduct.fromMap(map as Map<String, dynamic>))
+          .toList();
+    } else {
+      throw Exception('Failed to load products');
+    }
+  }
+
+
+  Future<void> createSectionProduct(SectionProduct product) async {
+    final response = await Supabase.instance.client
+        .from('section_products') // Make sure this matches your Supabase table name
+        .insert({
+      'id': product.id, // You can use `uuid` from Dart if you generate manually
+      'section_id': product.sectionId,
+      'name': product.name,
+      'quantity': product.quantity,
+      'data': product.details,
+      'created_at': product.createdAt.toIso8601String(), // Optional, Supabase can auto-generate this
+    });
+
+    if (response != null && response.error != null) {
+      throw Exception('Failed to create section product: ${response.error!.message}');
+    }
+  }
+
+
+
+  Future<Product> createProduct(String subsectionId, Map<String, dynamic> data) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final response = await _supabase.from('subsections_products').insert({
+        'subsection_id': subsectionId,
+        'name': data['name'],
+        'data': data,
+      }).select('id, subsection_id, name, data, created_at').single();
+
+      return Product.fromMap(response);
+    } catch (e) {
+      throw Exception('Error creating product: $e');
+    }
+  }
+
+
+  getProductsBySection(String id) {}
+
+
+  Future<void> createPremiseProduct(String premiseId, Map<String, dynamic> data) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+
+    await _supabase.from('premise_products').insert({
+      'contractor_id': user.id,
+      'premise_id': premiseId,
+      'name': data['name'],
+      'quantity': data['quantity'],
+      'details': data['details'],  // JSON type: can contain any key-values
+    });
+  }
+
+  Future<List<PremiseProduct>> getProductsByPremise(String premiseId) async {
+    final response = await _supabase
+        .from('premise_products')
+        .select()
+        .eq('premise_id', premiseId)
+        .order('created_at', ascending: false);
+
+    final data = response as List;
+    return data.map((json) => PremiseProduct.fromJson(json)).toList();
+  }
+
+
+
+  fetchProductsByPremise(String id) {}
+
+
+
+
+
+
 }

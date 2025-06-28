@@ -7,6 +7,14 @@ import '../services/chatbot_service.dart';
 import '../services/supabase_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import '../services/chat_service.dart';
+import '../models/chat_message.dart';
+import '../services/location_helper.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
 
 class ChatScreen extends StatefulWidget {
   final Pump pump;
@@ -30,6 +38,13 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = false;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _textController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  final ChatService _chatService = ChatService();
+  final TextEditingController _messageController = TextEditingController();
+  bool _isSending = false;
+  File? _pendingAttachment;
+  String? _pendingAttachmentType;
+  String? _pendingAttachmentName;
 
   // Add user object for the chat
   final types.User _user = const types.User(id: 'user', firstName: 'User');
@@ -132,50 +147,32 @@ What would you like to update?''',
     _addThinkingMessage();
 
     try {
-      final result = await _chatbotService.processUserMessage(
+      // Create a system prompt for the chatbot
+      final systemPrompt = '''
+You are a helpful assistant for a building management system.
+You're chatting with a user about ${widget.pump.name}.
+
+Current settings:
+- Status: ${widget.pump.status}
+- Mode: ${widget.pump.mode}
+- Start Pressure: ${widget.pump.startPressure} kg/cm²
+- Stop Pressure: ${widget.pump.stopPressure}
+- Suction Valve: ${widget.pump.suctionValve}
+- Delivery Valve: ${widget.pump.deliveryValve}
+- Pressure Gauge: ${widget.pump.pressureGauge}
+
+Please respond naturally to the user's message.
+''';
+
+      final responseText = await _chatbotService.getChatResponse(
         message.text,
-        widget.pump,
+        systemPrompt,
       );
-      final responseText = result['message'] as String;
 
       _removeLastMessage();
 
-      if (result['updates'] != null) {
-        final updates = result['updates'] as Map<String, dynamic>;
-        if (updates.isNotEmpty) {
-          final updatedPump = widget.pump.copyWith(
-            status:
-                updates.containsKey('status')
-                    ? updates['status'] as String
-                    : null,
-            mode:
-                updates.containsKey('mode') ? updates['mode'] as String : null,
-            startPressure:
-                updates.containsKey('start_pressure')
-                    ? (updates['start_pressure'] as num).toDouble()
-                    : null,
-            stopPressure:
-                updates.containsKey('stop_pressure')
-                    ? updates['stop_pressure'] as String
-                    : null,
-            suctionValve:
-                updates.containsKey('suction_valve')
-                    ? updates['suction_valve'] as String
-                    : null,
-            deliveryValve:
-                updates.containsKey('delivery_valve')
-                    ? updates['delivery_valve'] as String
-                    : null,
-            pressureGauge:
-                updates.containsKey('pressure_gauge')
-                    ? updates['pressure_gauge'] as String
-                    : null,
-          );
-
-          await _supabaseService.updatePump(updatedPump);
-          widget.onPumpUpdated(updatedPump);
-        }
-      }
+      // For now, we're not updating any pump values
+      // This would need to be reimplemented if pump functionality is needed again
 
       final botResponse = types.TextMessage(
         author: _bot,
@@ -191,25 +188,6 @@ What would you like to update?''',
       });
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
-
-      if (result['follow_up'] != null &&
-          result['follow_up'].toString().isNotEmpty) {
-        Future.delayed(const Duration(milliseconds: 800), () {
-          final followUpMessage = types.TextMessage(
-            author: _bot,
-            createdAt: DateTime.now().millisecondsSinceEpoch,
-            id: _uuid.v4(),
-            text: result['follow_up'] as String,
-          );
-          if (!mounted) return;
-          setState(() {
-            _messages.add(followUpMessage);
-          });
-          WidgetsBinding.instance.addPostFrameCallback(
-            (_) => _scrollToBottom(),
-          );
-        });
-      }
     } catch (error) {
       _removeLastMessage();
 
@@ -230,6 +208,186 @@ What would you like to update?''',
 
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _imagePicker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _pendingAttachment = File(pickedFile.path);
+        _pendingAttachmentType = 'image';
+        _pendingAttachmentName = pickedFile.name;
+      });
+      _showAttachmentPreview(_pendingAttachment!, _pendingAttachmentType!, _pendingAttachmentName);
+    }
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles();
+    if (result != null && result.files.isNotEmpty) {
+      setState(() {
+        _pendingAttachment = File(result.files.first.path!);
+        _pendingAttachmentType = 'document';
+        _pendingAttachmentName = result.files.first.name;
+      });
+      _showAttachmentPreview(_pendingAttachment!, _pendingAttachmentType!, _pendingAttachmentName);
+    }
+  }
+
+  Future<void> _shareLocation() async {
+    try {
+      setState(() => _isSending = true);
+      
+      final locationHelper = LocationHelper();
+      
+      // Check if location is available and request permission if needed
+      bool isAvailable = await locationHelper.isLocationAvailable();
+      if (!isAvailable) {
+        bool permissionGranted = await locationHelper.requestLocationPermission(context);
+        if (!permissionGranted) {
+          // User denied permission, exit early
+          setState(() => _isSending = false);
+          return;
+        }
+      }
+      
+      // Get location link and address using the helper
+      final locationLink = await locationHelper.generateLocationLink(context);
+      final locationAddress = await locationHelper.getCurrentAddressSafely(context);
+      
+      if (locationLink != null && locationAddress != null) {
+        final locationMessage = '📍 Location: $locationAddress\n$locationLink';
+        await _sendChatMessage(text: locationMessage);
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error sharing location: $e');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to share location: ${e.toString().replaceAll('Exception: ', '')}'),
+        ),
+      );
+
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _sendChatMessage({String? text, File? attachment, String? attachmentType, String? attachmentName}) async {
+    setState(() => _isSending = true);
+    try {
+      // For demo, use dummy receiver (in real app, get from context)
+      final receiverId = 'dummy_receiver';
+      final receiverType = 'contractor';
+      await _chatService.sendMessage(
+        context: context,
+        receiverId: receiverId,
+        receiverType: receiverType,
+        messageText: text,
+        attachment: attachment,
+        attachmentType: attachmentType,
+        attachmentName: attachmentName,
+      );
+      // Optionally, add to _messages for instant UI update
+      setState(() {
+        if (text != null && text.isNotEmpty) {
+          _messages.add(types.TextMessage(
+            author: _user,
+            createdAt: DateTime.now().millisecondsSinceEpoch,
+            id: _uuid.v4(),
+            text: text,
+          ));
+        }
+        _pendingAttachment = null;
+        _pendingAttachmentType = null;
+        _pendingAttachmentName = null;
+        _messageController.clear();
+      });
+      _scrollToBottom();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send message: $e')),
+      );
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
+  void _showAttachmentPreview(File file, String type, [String? fileName]) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Send ${type == 'image' ? 'Image' : 'File'}?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (type == 'image')
+              Container(
+                height: 200,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(file, fit: BoxFit.cover),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.attach_file, size: 24),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        fileName ?? file.path.split('/').last,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _messageController,
+              decoration: const InputDecoration(
+                hintText: 'Add a message (optional)...',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _sendChatMessage(
+                text: _messageController.text.trim().isEmpty ? null : _messageController.text.trim(),
+                attachment: file,
+                attachmentType: type,
+                attachmentName: fileName,
+              );
+              _messageController.clear();
+            },
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -291,7 +449,83 @@ What would you like to update?''',
               itemBuilder: (context, index) {
                 final message = _messages[index];
                 final isUser = message.author.id == _user.id;
-
+                // Display logic for attachments and location links
+                if (message is types.TextMessage) {
+                  final text = message.text;
+                  if (text.startsWith('📍 Location:')) {
+                    final urlMatch = RegExp(r'(https?://[\w\./?=&%-]+)').firstMatch(text);
+                    final url = urlMatch != null ? urlMatch.group(0) : null;
+                    return GestureDetector(
+                      onTap: url != null ? () async {
+                        try {
+                          final uri = Uri.parse(url);
+                          if (kDebugMode) {
+                            print('Attempting to launch URL: $url');
+                          }
+                          
+                          // First check if we can launch the URL
+                          if (await canLaunchUrl(uri)) {
+                            final launched = await launchUrl(
+                              uri,
+                              mode: LaunchMode.externalApplication,
+                            );
+                            
+                            if (!launched && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not launch the map link')),
+                              );
+                            }
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Could not launch the map link - URL cannot be handled')),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (kDebugMode) {
+                            print('Error launching URL: $e');
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error launching map: ${e.toString()}')),
+                            );
+                          }
+                        }
+                      } : null,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isUser ? (isWorking ? Colors.green.shade600 : Colors.red.shade600) : Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isUser ? 'You' : 'Pump Assistant',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isUser ? Colors.white : Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              text,
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: isUser ? Colors.white : Colors.black87,
+                                decoration: url != null ? TextDecoration.underline : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                }
                 return Align(
                   alignment:
                       isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -389,15 +623,28 @@ What would you like to update?''',
             ),
             child: Row(
               children: [
+                IconButton(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.image),
+                  color: Colors.blue.shade700,
+                ),
+                IconButton(
+                  onPressed: _pickFile,
+                  icon: const Icon(Icons.attach_file),
+                  color: Colors.blue.shade700,
+                ),
+                IconButton(
+                  onPressed: _shareLocation,
+                  icon: const Icon(Icons.location_on),
+                  color: Colors.blue.shade700,
+                ),
                 Expanded(
                   child: TextField(
-                    controller: _textController,
+                    controller: _messageController,
                     onSubmitted: (text) {
                       if (text.trim().isNotEmpty) {
-                        _handleSendPressed(
-                          types.PartialText(text: text.trim()),
-                        );
-                        _textController.clear();
+                        _sendChatMessage(text: text.trim());
+                        _messageController.clear();
                       }
                     },
                     decoration: InputDecoration(
@@ -442,13 +689,15 @@ What would you like to update?''',
                   child: IconButton(
                     icon: const Icon(Icons.send_rounded),
                     color: Colors.white,
-                    onPressed: () {
-                      final text = _textController.text.trim();
-                      if (text.isNotEmpty) {
-                        _handleSendPressed(types.PartialText(text: text));
-                        _textController.clear();
-                      }
-                    },
+                    onPressed: _isSending
+                        ? null
+                        : () {
+                            final text = _messageController.text.trim();
+                            if (text.isNotEmpty) {
+                              _sendChatMessage(text: text);
+                              _messageController.clear();
+                            }
+                          },
                   ),
                 ),
               ],

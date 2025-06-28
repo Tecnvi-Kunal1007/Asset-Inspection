@@ -119,77 +119,245 @@ class _ComponentItemState extends State<ComponentItem>
     );
   }
 
+  Widget _buildStatusToggleButtons() {
+    return Container(
+      height: 35,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Stack(
+        children: [
+          // Animated background
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color:
+                  currentStatus == 'Working'
+                      ? Colors.green.shade400
+                      : currentStatus == 'Not Working'
+                      ? Colors.red.shade400
+                      : Colors.orange.shade400,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          // Toggle buttons
+          Row(
+            children: [
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(8),
+                      bottomLeft: Radius.circular(8),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        currentStatus = 'Working';
+                      });
+                      widget.onStatusChanged('Working');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(
+                            color: Colors.grey.shade300,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Working',
+                          style: GoogleFonts.poppins(
+                            color:
+                                currentStatus == 'Working'
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        currentStatus = 'Not Working';
+                      });
+                      widget.onStatusChanged('Not Working');
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(
+                            color: Colors.grey.shade300,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Not\nWorking',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            color:
+                                currentStatus == 'Not Working'
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(8),
+                      bottomRight: Radius.circular(8),
+                    ),
+                    onTap: () {
+                      setState(() {
+                        currentStatus = 'Missing';
+                      });
+                      widget.onStatusChanged('Missing');
+                    },
+                    child: Center(
+                      child: Text(
+                        'Missing',
+                        style: GoogleFonts.poppins(
+                          color:
+                              currentStatus == 'Missing'
+                                  ? Colors.white
+                                  : Colors.grey.shade700,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _colorAnimation,
       builder: (context, child) {
         return Card(
-          color: _colorAnimation.value,
-          child: ListTile(
-            title: Column(
+          color: Colors.white,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.title),
-                if (widget.subtitle != null)
-                  Text(
-                    widget.subtitle!,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                Text('Status: $currentStatus'),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (currentNote != null) ...[
-                  Text('Note: $currentNote'),
-                  const SizedBox(height: 4),
-                ],
+                // Title and Delete Button Row
                 Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton.icon(
-                      onPressed: _showEditNoteDialog,
-                      icon: const Icon(Icons.edit_note, size: 16),
-                      label: Text(
-                        currentNote == null ? 'Add Note' : 'Edit Note',
-                        style: GoogleFonts.poppins(fontSize: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (widget.subtitle != null)
+                            Text(
+                              widget.subtitle!,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                        ],
                       ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete,
+                        color: Colors.red,
+                        size: 20,
                       ),
+                      onPressed: widget.onDelete,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
-              ],
-            ),
-            trailing: PopupMenuButton<String>(
-              itemBuilder:
-                  (context) => [
-                    ...widget.statusOptions.map(
-                      (status) => PopupMenuItem(
-                        value: status,
-                        child: Text('Mark as $status'),
-                      ),
+                const SizedBox(height: 8),
+
+                // Status Label
+                Text(
+                  'Status:',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+
+                // Status Toggle Buttons
+                _buildStatusToggleButtons(),
+
+                const SizedBox(height: 8),
+
+                // Note Section
+                if (currentNote != null) ...[
+                  Text(
+                    'Note: $currentNote',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
                     ),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-              onSelected: (value) async {
-                if (value == 'delete') {
-                  widget.onDelete();
-                } else {
-                  setState(() {
-                    currentStatus = value;
-                  });
-                  widget.onStatusChanged(value);
-                }
-              },
+                  ),
+                  const SizedBox(height: 4),
+                ],
+
+                // Edit Note Button
+                TextButton.icon(
+                  onPressed: _showEditNoteDialog,
+                  icon: const Icon(Icons.edit_note, size: 16),
+                  label: Text(
+                    currentNote == null ? 'Add Note' : 'Edit Note',
+                    style: GoogleFonts.poppins(fontSize: 12),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
             ),
           ),
         );

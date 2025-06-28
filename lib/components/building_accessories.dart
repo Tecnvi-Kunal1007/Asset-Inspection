@@ -92,6 +92,59 @@ class _BuildingAccessoriesWidgetState extends State<BuildingAccessoriesWidget> {
     }
   }
 
+  Future<void> _updateStatusWithoutRefresh(String field, String status) async {
+    if (_buildingAccessories == null) return;
+
+    try {
+      await widget.supabaseService.updateBuildingAccessories(
+        _buildingAccessories!.id,
+        {field: status},
+      );
+
+      // Update the local state without full refresh
+      setState(() {
+        switch (field) {
+          case 'fire_alarm_panel_status':
+            _buildingAccessories!.fireAlarmPanelStatus = status;
+            break;
+          case 'repeater_panel_status':
+            _buildingAccessories!.repeaterPanelStatus = status;
+            break;
+          case 'battery_status':
+            _buildingAccessories!.batteryStatus = status;
+            break;
+          case 'lift_integration_relay_status':
+            _buildingAccessories!.liftIntegrationRelayStatus = status;
+            break;
+          case 'access_integration_status':
+            _buildingAccessories!.accessIntegrationStatus = status;
+            break;
+          case 'press_fan_integration_status':
+            _buildingAccessories!.pressFanIntegrationStatus = status;
+            break;
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status updated to $status'),
+            duration: const Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      widget.onUpdated();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating status: $e')));
+      }
+    }
+  }
+
   Future<void> _updateNotes(String notes) async {
     if (_buildingAccessories == null) return;
 
@@ -137,33 +190,163 @@ class _BuildingAccessoriesWidgetState extends State<BuildingAccessoriesWidget> {
     });
   }
 
-  Widget _buildStatusDropdown(
+  Widget _buildStatusToggleButtons(
     String title,
     String currentStatus,
     String fieldName,
   ) {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+            // Title above the buttons
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: Colors.grey.shade800,
               ),
             ),
-            DropdownButton<String>(
-              value: currentStatus,
-              items:
-                  _statusOptions.map((status) {
-                    return DropdownMenuItem(value: status, child: Text(status));
-                  }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  _updateStatus(fieldName, value);
-                }
-              },
+            const SizedBox(height: 8),
+            // Toggle buttons below
+            Container(
+              height: 40,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Stack(
+                children: [
+                  // Animated background
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    margin: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color:
+                          currentStatus == 'Working'
+                              ? Colors.green.shade400
+                              : currentStatus == 'Not Working'
+                              ? Colors.red.shade400
+                              : Colors.orange.shade400,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  // Toggle buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(10),
+                              bottomLeft: Radius.circular(10),
+                            ),
+                            onTap:
+                                () => _updateStatusWithoutRefresh(
+                                  fieldName,
+                                  'Working',
+                                ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  right: BorderSide(
+                                    color: Colors.grey.shade300,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Working',
+                                  style: GoogleFonts.poppins(
+                                    color:
+                                        currentStatus == 'Working'
+                                            ? Colors.white
+                                            : Colors.grey.shade700,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap:
+                                () => _updateStatusWithoutRefresh(
+                                  fieldName,
+                                  'Not Working',
+                                ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  right: BorderSide(
+                                    color: Colors.grey.shade300,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Not\nWorking',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.poppins(
+                                    color:
+                                        currentStatus == 'Not Working'
+                                            ? Colors.white
+                                            : Colors.grey.shade700,
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: const BorderRadius.only(
+                              topRight: Radius.circular(10),
+                              bottomRight: Radius.circular(10),
+                            ),
+                            onTap:
+                                () => _updateStatusWithoutRefresh(
+                                  fieldName,
+                                  'Missing',
+                                ),
+                            child: Center(
+                              child: Text(
+                                'Missing',
+                                style: GoogleFonts.poppins(
+                                  color:
+                                      currentStatus == 'Missing'
+                                          ? Colors.white
+                                          : Colors.grey.shade700,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -199,37 +382,37 @@ class _BuildingAccessoriesWidgetState extends State<BuildingAccessoriesWidget> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildStatusDropdown(
+          _buildStatusToggleButtons(
             'Fire Alarm Panel',
             _buildingAccessories!.fireAlarmPanelStatus,
             'fire_alarm_panel_status',
           ),
           const SizedBox(height: 8),
-          _buildStatusDropdown(
+          _buildStatusToggleButtons(
             'Repeater Panel',
             _buildingAccessories!.repeaterPanelStatus,
             'repeater_panel_status',
           ),
           const SizedBox(height: 8),
-          _buildStatusDropdown(
+          _buildStatusToggleButtons(
             'Battery',
             _buildingAccessories!.batteryStatus,
             'battery_status',
           ),
           const SizedBox(height: 8),
-          _buildStatusDropdown(
+          _buildStatusToggleButtons(
             'Lift Integration Relay',
             _buildingAccessories!.liftIntegrationRelayStatus,
             'lift_integration_relay_status',
           ),
           const SizedBox(height: 8),
-          _buildStatusDropdown(
+          _buildStatusToggleButtons(
             'Access Integration',
             _buildingAccessories!.accessIntegrationStatus,
             'access_integration_status',
           ),
           const SizedBox(height: 8),
-          _buildStatusDropdown(
+          _buildStatusToggleButtons(
             'Press Fan Integration',
             _buildingAccessories!.pressFanIntegrationStatus,
             'press_fan_integration_status',

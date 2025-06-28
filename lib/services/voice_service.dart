@@ -404,7 +404,7 @@ Future<void> textToSpeech(String text) async {
           'messages': [
             {
               'role': 'system',
-              'content': 'Generate a friendly greeting for a pump maintenance app. Introduce the pump by name and explain that we\'ll be updating various pump settings one by one. The greeting should be brief, professional, and welcoming.',
+              'content': 'Generate a friendly greeting for a building maintenance app. Introduce yourself and explain that we\'ll be updating various settings one by one. The greeting should be brief, professional, and welcoming.',
             },
             {
               'role': 'user',
@@ -420,12 +420,12 @@ Future<void> textToSpeech(String text) async {
         await textToSpeech(greeting);
         return greeting;
       } else {
-        final defaultGreeting = 'Welcome to the pump voice assistant. Let\'s update the settings for ${context['pump_name']}.';
+        final defaultGreeting = 'Welcome to the building maintenance voice assistant. Let\'s update the settings.';
         await textToSpeech(defaultGreeting);
         return defaultGreeting;
       }
     } catch (e) {
-      final defaultGreeting = 'Welcome to the pump voice assistant. Let\'s update the settings for ${context['pump_name']}.';
+      final defaultGreeting = 'Welcome to the building maintenance voice assistant. Let\'s update the settings.';
       await textToSpeech(defaultGreeting);
       return defaultGreeting;
     }
@@ -445,7 +445,7 @@ Future<void> textToSpeech(String text) async {
           'messages': [
             {
               'role': 'system',
-              'content': 'Generate a clear, concise question about updating a specific field for a pump. Mention the current value and ask if the user wants to update it. Keep the question brief and direct.',
+              'content': 'Generate a clear, concise question about updating a specific field. Mention the current value and ask if the user wants to update it. Keep the question brief and direct.',
             },
             {
               'role': 'user',
@@ -486,7 +486,7 @@ Future<void> textToSpeech(String text) async {
           'messages': [
             {
               'role': 'system',
-              'content': 'Generate a brief summary of the pump update session. Mention the pump name and summarize the current settings that were updated. Keep it conversational and professional.',
+              'content': 'Generate a brief summary of the update session. Summarize the current settings that were updated. Keep it conversational and professional.',
             },
             {
               'role': 'user',

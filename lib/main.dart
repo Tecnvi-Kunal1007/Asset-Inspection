@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -9,16 +10,13 @@ import 'screens/login_page.dart';
 import 'screens/reset_password_callback.dart';
 import 'package:app_links/app_links.dart';
 import 'dart:async';
+import 'test_freelancer.dart'; // Import the test screen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: ".env");
 
-  await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-  );
   runApp(MyApp());
 }
 
@@ -88,9 +86,12 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Building Management System',
       navigatorKey: _navigatorKey,
       theme: ThemeData(textTheme: GoogleFonts.poppinsTextTheme()),
-      home: const LoginPage(), // initial page
+      // Comment out the test screen and uncomment the login page
+      // home: const TestFreelancerScreen(), // For testing freelancer service
+      home: const LoginPage(), // Regular app flow
     );
   }
 }

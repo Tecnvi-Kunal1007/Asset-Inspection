@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
+import '../services/location_helper.dart';
 import '../services/work_report_service.dart';
 import '../models/work_report.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -268,25 +269,32 @@ class _AssignedTasksScreenState extends State<AssignedTasksScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      setState(() {
-        _currentPosition = position;
-      });
-
-      // Get address from coordinates
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      if (placemarks.isNotEmpty) {
-        final place = placemarks.first;
+      final locationHelper = LocationHelper();
+      
+      // Check if location is available and request permission if needed
+      bool isAvailable = await locationHelper.isLocationAvailable();
+      if (!isAvailable) {
+        bool permissionGranted = await locationHelper.requestLocationPermission(context);
+        if (!permissionGranted) {
+          // User denied permission, exit early
+          return;
+        }
+      }
+      
+      // Get location using the helper
+      final position = await locationHelper.getCurrentLocationSafely(context);
+      if (position != null) {
         setState(() {
-          _currentAddress =
-              '${place.street}, ${place.locality}, ${place.administrativeArea}';
+          _currentPosition = position;
         });
+        
+        // Get address using the helper
+        final address = await locationHelper.getCurrentAddressSafely(context);
+        if (address != null) {
+          setState(() {
+            _currentAddress = address;
+          });
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(

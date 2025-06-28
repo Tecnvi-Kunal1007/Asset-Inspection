@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
 import '../services/work_report_service.dart';
+import '../services/location_helper.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -125,40 +126,38 @@ class _WorkReportFormScreenState extends State<WorkReportFormScreen> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        final requestPermission = await Geolocator.requestPermission();
-        if (requestPermission == LocationPermission.denied) {
-          throw Exception('Location permission denied');
+      final locationHelper = LocationHelper();
+      
+      // Check if location is available and request permission if needed
+      bool isAvailable = await locationHelper.isLocationAvailable();
+      if (!isAvailable) {
+        bool permissionGranted = await locationHelper.requestLocationPermission(context);
+        if (!permissionGranted) {
+          // User denied permission, exit early
+          return;
         }
       }
-
-      final position = await Geolocator.getCurrentPosition();
-      setState(() {
-        _currentPosition = position;
-      });
-
-      // Get address from coordinates
-      try {
-        List<Placemark> placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-
-        if (placemarks.isNotEmpty) {
-          Placemark place = placemarks[0];
+      
+      // Get location using the helper
+      final position = await locationHelper.getCurrentLocationSafely(context);
+      if (position != null) {
+        setState(() {
+          _currentPosition = position;
+        });
+        
+        // Get address using the helper
+        final address = await locationHelper.getCurrentAddressSafely(context);
+        if (address != null) {
+          setState(() {
+            _currentAddress = address;
+          });
+        } else {
+          // If address retrieval fails, use coordinates as fallback
           setState(() {
             _currentAddress =
-                '${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}, ${place.postalCode}, ${place.country}';
+                '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
           });
         }
-      } catch (e) {
-        print('Error getting address: $e');
-        // If reverse geocoding fails, show coordinates as fallback
-        setState(() {
-          _currentAddress =
-              '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
-        });
       }
     } catch (e) {
       ScaffoldMessenger.of(

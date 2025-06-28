@@ -99,6 +99,70 @@ flutter run
 3. Scan QR codes to view and update pump details
 4. Use the chatbot interface to update pump information through natural conversation
 
+## Responsive Design Implementation
+
+The application has been updated to be fully responsive across different screen sizes:
+
+### Responsive Helper
+
+A `ResponsiveHelper` utility class has been created to manage responsive behavior across the app:
+
+- Screen size detection (mobile, tablet, desktop)
+- Adaptive layouts using `responsiveWidget` method
+- Dynamic font sizes and padding based on screen size
+- Flexible grid layouts with appropriate column counts
+
+### New Color Scheme & UI Design
+
+A modern and vibrant color scheme has been implemented through the `ThemeHelper` class:
+
+- **Primary Colors**: Blue (#2196F3), Purple (#9C27B0), Teal (#009688), Orange (#FF9800), Green (#4CAF50), Indigo (#3F51B5), Cyan (#00BCD4), Pink (#E91E63)
+- **Visual Features**: Gradient backgrounds, floating elements, glow effects, rounded corners (24px radius)
+- **Card Design**: Unique color combinations, background accent icons, improved shadow effects
+- **Typography**: Better spacing and hierarchy with responsive font sizes
+
+### Responsive Screens
+
+The following screens have been optimized for responsive behavior:
+
+1. **Areas Screen**
+   - Responsive grid layout with 1-3 columns based on screen size
+   - Animated floating elements
+   - Card-based UI with gradient accents
+   - Consistent spacing and typography
+
+2. **Add Freelancer Screen**
+   - Responsive form layout with adaptive sections
+   - Different layouts for mobile, tablet, and desktop
+   - Enhanced visual elements with gradient buttons and icons
+   - Improved photo upload experience
+
+3. **Site Manager Dashboard**
+   - Adaptive card layouts (vertical on mobile, grid on larger screens)
+   - Responsive typography and spacing
+   - Optimized area and site listings
+
+4. **Site Details Screen**
+   - Responsive information cards
+   - Adaptive layouts for site information and freelancer sections
+   - Optimized component sizing based on screen width
+
+5. **Create Site Screen**
+   - Responsive form layout with adaptive stepper (vertical on mobile, horizontal on larger screens)
+   - Multi-column layouts on tablet and desktop
+   - Optimized input fields and buttons
+
+### Key Features
+
+- **Mobile**: Single column layouts optimized for smaller screens
+- **Tablet**: Two-column layouts with optimized spacing
+- **Desktop**: Multi-column layouts with expanded information display
+- **Dynamic Typography**: Font sizes that adjust based on screen size
+- **Adaptive Padding**: Proper spacing that changes with screen dimensions
+- **Enhanced Visuals**: Gradient backgrounds, shadows, and visual elements
+
+This responsive implementation ensures that users can effectively manage sites across any device, from mobile phones to desktop computers, with a modern and engaging interface.
+
 ## Dependencies
 
 - flutter_chat_ui: ^1.6.8

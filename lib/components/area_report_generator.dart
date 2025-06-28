@@ -1,18 +1,21 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/area.dart';
 import '../models/site.dart';
-import '../models/pump.dart';
-import '../models/floor.dart';
 import '../services/supabase_service.dart';
-import '../services/openai_service.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import '../models/floor.dart';
 import 'site_report_generator.dart';
 import 'package:printing/printing.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import '../services/openai_service.dart';
 
 class AreaReportGenerator {
   final Area area;
@@ -113,7 +116,7 @@ class AreaReportGenerator {
                               contractorEmail: 'unknown@email.com',
                               contractorId: 'unknown',
                               areaId: area.id,
-                              createdAt: DateTime.now(),
+                              createdAt: DateTime.now(), description: '',
                             ),
                       )
                       .siteName,
@@ -168,8 +171,8 @@ class AreaReportGenerator {
       print('Processing site: ${site.siteName}'); // Debug print
 
       // Collect components based on assigned section or all components for contractors
-      if (isContractor || assignedSection == 'pumps_floor') {
-        await _collectNonWorkingComponents(site.id, 'pumps');
+      if (isContractor || assignedSection == 'floor') {
+        // No longer collecting pumps
         await _collectNonWorkingComponents(site.id, 'building_accessories');
         await _collectNonWorkingComponents(
           site.id,
@@ -590,12 +593,6 @@ class AreaReportGenerator {
     final floors = await supabaseService.getFloorsBySiteId(siteId);
     final allComponents = <dynamic>[];
 
-    // Get pumps first as they are site-level components
-    if (componentType == 'pumps') {
-      final pumps = await supabaseService.getPumpsBySiteId(siteId);
-      allComponents.addAll(pumps);
-    }
-
     // Get building accessories as they are site-level components
     if (componentType == 'building_accessories') {
       final accessories = await supabaseService.getBuildingAccessories(siteId);
@@ -951,57 +948,6 @@ class AreaReportGenerator {
     );
   }
 
-  pw.Widget _buildPumpsSection(List<Pump> pumps) {
-    if (pumps.isEmpty) {
-      return pw.Text('No pumps available');
-    }
-
-    return pw.Container(
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Header(
-            level: 1,
-            text: 'Pumps Information',
-            textStyle: pw.TextStyle(
-              fontSize: 16,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.blue,
-            ),
-          ),
-          pw.SizedBox(height: 5),
-          ...pumps
-              .map(
-                (pump) => pw.Container(
-                  margin: const pw.EdgeInsets.only(bottom: 10),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        pump.name,
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 5),
-                      _buildPdfInfoTable([
-                        ['Status', pump.status],
-                        [
-                          'Last Updated',
-                          pump.updatedAt?.toString().split('.')[0] ?? 'N/A',
-                        ],
-                      ]),
-                    ],
-                  ),
-                ),
-              )
-              .toList(),
-        ],
-      ),
-    );
-  }
-
   pw.Widget _buildBuildingAccessoriesSection(
     List<Floor> floors,
     List<dynamic> smokeDetectors,
@@ -1198,8 +1144,8 @@ class AreaReportGenerator {
           ),
           pw.SizedBox(height: 5),
           ...floors.map((floor) {
-            // Pump Floor Components
-            final pumpFloorComponents = [
+            // Floor Components
+            final floorComponents = [
               ...hydrantValves
                   .where((c) => c.floorId == floor.id)
                   .map(
@@ -1354,17 +1300,6 @@ class AreaReportGenerator {
                           c.updatedAt?.toString().split('.')[0] ?? 'N/A',
                     },
                   ),
-              ...boosterPumps
-                  .where((c) => c.floorId == floor.id)
-                  .map(
-                    (c) => {
-                      'type': 'Booster Pump',
-                      'status': c.status,
-                      'note': c.note,
-                      'updated_at':
-                          c.updatedAt?.toString().split('.')[0] ?? 'N/A',
-                    },
-                  ),
             ];
 
             return pw.Container(
@@ -1382,7 +1317,7 @@ class AreaReportGenerator {
                   ),
                   pw.SizedBox(height: 5),
 
-                  if (pumpFloorComponents.isNotEmpty) ...[
+                  if (floorComponents.isNotEmpty) ...[
                     pw.Container(
                       padding: const pw.EdgeInsets.all(8),
                       decoration: pw.BoxDecoration(
@@ -1401,7 +1336,7 @@ class AreaReportGenerator {
                       ),
                     ),
                     pw.SizedBox(height: 5),
-                    _buildComponentTable(pumpFloorComponents),
+                    _buildComponentTable(floorComponents),
                   ] else
                     pw.Text('No components available for this floor'),
                 ],
@@ -1682,7 +1617,6 @@ class AreaReportGenerator {
   // Build site report content
   Future<List<pw.Widget>> _buildSiteReportContent(Site site) async {
     // Fetch required data for each site
-    final pumps = await supabaseService.getPumpsBySiteId(site.id);
     final floors = await supabaseService.getFloorsBySiteId(site.id);
 
     // Fetch site description
@@ -1704,7 +1638,6 @@ class AreaReportGenerator {
     // Create a site report generator
     final siteReportGenerator = SiteReportGenerator(
       site: site,
-      pumps: pumps,
       floors: floors,
       siteDescription: siteDescription,
       supabaseService: supabaseService,
@@ -1765,7 +1698,7 @@ class AreaReportGenerator {
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text(
-              'Pump Management System',
+              'Building Management System',
               style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
             ),
           ],

@@ -179,17 +179,17 @@ class _FloatingChatbotState extends State<FloatingChatbot> {
   String _getSystemPrompt() {
     final role = widget.userRole.replaceAll('_', ' ');
     return '''
-You are a helpful AI assistant for a pump management system. You are specifically helping a $role.
+You are a helpful AI assistant for a building management system. You are specifically helping a $role.
 
 Your role is to:
-1. Provide helpful information about pump management, site operations, and system features
+1. Provide helpful information about building management, site operations, and system features
 2. Answer questions about the dashboard and available functions
 3. Guide users through common tasks
 4. Provide technical support and troubleshooting advice
 
 Key areas you can help with:
 - Site management and area assignments
-- Pump operations and maintenance
+- Building maintenance and inspection
 - Inspection procedures and reports
 - Task management and scheduling
 - System navigation and features

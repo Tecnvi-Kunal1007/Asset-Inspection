@@ -23,7 +23,7 @@ import '../models/flow_switch.dart';
 import '../models/monitor_module.dart';
 import '../models/telephone_jack.dart';
 import '../models/speaker.dart';
-import '../models/booster_pump.dart';
+
 import '../services/supabase_service.dart';
 import 'component_item.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -449,23 +449,7 @@ class _FloorComponentsState extends State<FloorComponents> {
                       () => _onComponentUpdated('Sprinkler ZCV'),
                 ),
 
-                _buildGenericComponentSection<BoosterPump>(
-                  context,
-                  'Booster Pump',
-                  () => widget.supabaseService.getBoosterPumps(widget.floor.id),
-                  (pump) => widget.supabaseService.updateBoosterPump(
-                    pump.id,
-                    pump.status,
-                    note: pump.note,
-                  ),
-                  (pump) => widget.supabaseService.deleteBoosterPump(pump.id),
-                  (status, note) => widget.supabaseService.createBoosterPump(
-                    widget.floor.id,
-                    status,
-                    note: note,
-                  ),
-                  onComponentUpdated: () => _onComponentUpdated('Booster Pump'),
-                ),
+
               ],
             ),
           ),
@@ -611,7 +595,9 @@ class _FloorComponentsState extends State<FloorComponents> {
     List<String> statusOptions,
     Function() onComponentUpdated,
   ) {
-    final statusController = TextEditingController();
+    final statusController = TextEditingController(
+      text: 'Working',
+    ); // Set default status to "Working"
     final noteController = TextEditingController();
     MobileScannerController? scannerController;
 
@@ -639,6 +625,7 @@ class _FloorComponentsState extends State<FloorComponents> {
                       labelText: 'Status',
                       border: OutlineInputBorder(),
                     ),
+                    value: 'Working', // Set default value to "Working"
                     items:
                         statusOptions.map((status) {
                           return DropdownMenuItem(
@@ -1020,7 +1007,9 @@ class _FloorComponentsState extends State<FloorComponents> {
 
   void _showAddHydrantValveDialog(BuildContext context) {
     final valveTypeController = TextEditingController();
-    final statusController = TextEditingController();
+    final statusController = TextEditingController(
+      text: 'Working',
+    ); // Set default status to "Working"
     final noteController = TextEditingController();
     MobileScannerController? scannerController;
 
@@ -1061,6 +1050,7 @@ class _FloorComponentsState extends State<FloorComponents> {
                         labelText: 'Status',
                         border: OutlineInputBorder(),
                       ),
+                      value: 'Working', // Set default value to "Working"
                       items:
                           ['Working', 'Not Working', 'Missing'].map((status) {
                             return DropdownMenuItem(
