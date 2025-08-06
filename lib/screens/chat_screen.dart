@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:uuid/uuid.dart';
-import '../models/pump.dart';
+// import '../models/pump.dart'; // Model doesn't exist
 import '../services/chatbot_service.dart';
 import '../services/supabase_service.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,13 +17,13 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 
 class ChatScreen extends StatefulWidget {
-  final Pump pump;
-  final Function(Pump) onPumpUpdated;
+  // final Pump pump;
+  // final Function(Pump) onPumpUpdated;
 
   const ChatScreen({
     super.key,
-    required this.pump,
-    required this.onPumpUpdated,
+    // required this.pump,
+    // required this.onPumpUpdated,
   });
 
   @override
@@ -84,7 +84,7 @@ class _ChatScreenState extends State<ChatScreen> {
       createdAt: DateTime.now().millisecondsSinceEpoch,
       id: _uuid.v4(),
       text:
-          '''Hello! 👋 I'm your pump management assistant. I can help you update the following information for ${widget.pump.name}:
+          '''Hello! 👋 I'm your pump management assistant. I can help you update the following information for your equipment:
 
 📊 Status: Working/Not Working
 🔄 Mode: Auto/Manual
@@ -150,16 +150,16 @@ What would you like to update?''',
       // Create a system prompt for the chatbot
       final systemPrompt = '''
 You are a helpful assistant for a building management system.
-You're chatting with a user about ${widget.pump.name}.
+You're chatting with a user about their equipment.
 
 Current settings:
-- Status: ${widget.pump.status}
-- Mode: ${widget.pump.mode}
-- Start Pressure: ${widget.pump.startPressure} kg/cm²
-- Stop Pressure: ${widget.pump.stopPressure}
-- Suction Valve: ${widget.pump.suctionValve}
-- Delivery Valve: ${widget.pump.deliveryValve}
-- Pressure Gauge: ${widget.pump.pressureGauge}
+- Status: Working
+- Mode: Auto
+- Start Pressure: 2.5 kg/cm²
+- Stop Pressure: 4.0 kg/cm²
+- Suction Valve: Open
+- Delivery Valve: Open
+- Pressure Gauge: Normal
 
 Please respond naturally to the user's message.
 ''';
@@ -211,14 +211,20 @@ Please respond naturally to the user's message.
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await _imagePicker.pickImage(source: ImageSource.gallery);
+    final pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+    );
     if (pickedFile != null) {
       setState(() {
         _pendingAttachment = File(pickedFile.path);
         _pendingAttachmentType = 'image';
         _pendingAttachmentName = pickedFile.name;
       });
-      _showAttachmentPreview(_pendingAttachment!, _pendingAttachmentType!, _pendingAttachmentName);
+      _showAttachmentPreview(
+        _pendingAttachment!,
+        _pendingAttachmentType!,
+        _pendingAttachmentName,
+      );
     }
   }
 
@@ -230,31 +236,39 @@ Please respond naturally to the user's message.
         _pendingAttachmentType = 'document';
         _pendingAttachmentName = result.files.first.name;
       });
-      _showAttachmentPreview(_pendingAttachment!, _pendingAttachmentType!, _pendingAttachmentName);
+      _showAttachmentPreview(
+        _pendingAttachment!,
+        _pendingAttachmentType!,
+        _pendingAttachmentName,
+      );
     }
   }
 
   Future<void> _shareLocation() async {
     try {
       setState(() => _isSending = true);
-      
+
       final locationHelper = LocationHelper();
-      
+
       // Check if location is available and request permission if needed
       bool isAvailable = await locationHelper.isLocationAvailable();
       if (!isAvailable) {
-        bool permissionGranted = await locationHelper.requestLocationPermission(context);
+        bool permissionGranted = await locationHelper.requestLocationPermission(
+          context,
+        );
         if (!permissionGranted) {
           // User denied permission, exit early
           setState(() => _isSending = false);
           return;
         }
       }
-      
+
       // Get location link and address using the helper
       final locationLink = await locationHelper.generateLocationLink(context);
-      final locationAddress = await locationHelper.getCurrentAddressSafely(context);
-      
+      final locationAddress = await locationHelper.getCurrentAddressSafely(
+        context,
+      );
+
       if (locationLink != null && locationAddress != null) {
         final locationMessage = '📍 Location: $locationAddress\n$locationLink';
         await _sendChatMessage(text: locationMessage);
@@ -265,16 +279,22 @@ Please respond naturally to the user's message.
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to share location: ${e.toString().replaceAll('Exception: ', '')}'),
+          content: Text(
+            'Failed to share location: ${e.toString().replaceAll('Exception: ', '')}',
+          ),
         ),
       );
-
     } finally {
       setState(() => _isSending = false);
     }
   }
 
-  Future<void> _sendChatMessage({String? text, File? attachment, String? attachmentType, String? attachmentName}) async {
+  Future<void> _sendChatMessage({
+    String? text,
+    File? attachment,
+    String? attachmentType,
+    String? attachmentName,
+  }) async {
     setState(() => _isSending = true);
     try {
       // For demo, use dummy receiver (in real app, get from context)
@@ -292,12 +312,14 @@ Please respond naturally to the user's message.
       // Optionally, add to _messages for instant UI update
       setState(() {
         if (text != null && text.isNotEmpty) {
-          _messages.add(types.TextMessage(
-            author: _user,
-            createdAt: DateTime.now().millisecondsSinceEpoch,
-            id: _uuid.v4(),
-            text: text,
-          ));
+          _messages.add(
+            types.TextMessage(
+              author: _user,
+              createdAt: DateTime.now().millisecondsSinceEpoch,
+              id: _uuid.v4(),
+              text: text,
+            ),
+          );
         }
         _pendingAttachment = null;
         _pendingAttachmentType = null;
@@ -306,9 +328,9 @@ Please respond naturally to the user's message.
       });
       _scrollToBottom();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
     } finally {
       setState(() => _isSending = false);
     }
@@ -317,82 +339,86 @@ Please respond naturally to the user's message.
   void _showAttachmentPreview(File file, String type, [String? fileName]) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Send ${type == 'image' ? 'Image' : 'File'}?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (type == 'image')
-              Container(
-                height: 200,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(file, fit: BoxFit.cover),
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.attach_file, size: 24),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        fileName ?? file.path.split('/').last,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Send ${type == 'image' ? 'Image' : 'File'}?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (type == 'image')
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
-                  ],
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(file, fit: BoxFit.cover),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.attach_file, size: 24),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            fileName ?? file.path.split('/').last,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _messageController,
+                  decoration: const InputDecoration(
+                    hintText: 'Add a message (optional)...',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
                 ),
-              ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _messageController,
-              decoration: const InputDecoration(
-                hintText: 'Add a message (optional)...',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _sendChatMessage(
+                    text:
+                        _messageController.text.trim().isEmpty
+                            ? null
+                            : _messageController.text.trim(),
+                    attachment: file,
+                    attachmentType: type,
+                    attachmentName: fileName,
+                  );
+                  _messageController.clear();
+                },
+                child: const Text('Send'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _sendChatMessage(
-                text: _messageController.text.trim().isEmpty ? null : _messageController.text.trim(),
-                attachment: file,
-                attachmentType: type,
-                attachmentName: fileName,
-              );
-              _messageController.clear();
-            },
-            child: const Text('Send'),
-          ),
-        ],
-      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isWorking = widget.pump.status.toLowerCase() == 'working';
+    final isWorking = true; // widget.pump.status.toLowerCase() == 'working';
 
     return Scaffold(
       appBar: AppBar(
@@ -411,18 +437,17 @@ Please respond naturally to the user's message.
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.pump.name,
+                  'Equipment Chat',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
                 Text(
-                  'Status: ${widget.pump.status}',
+                  'Status: Working',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
-                    color:
-                        isWorking ? Colors.green.shade700 : Colors.red.shade700,
+                    color: Colors.green.shade700,
                   ),
                 ),
               ],
@@ -453,62 +478,97 @@ Please respond naturally to the user's message.
                 if (message is types.TextMessage) {
                   final text = message.text;
                   if (text.startsWith('📍 Location:')) {
-                    final urlMatch = RegExp(r'(https?://[\w\./?=&%-]+)').firstMatch(text);
+                    final urlMatch = RegExp(
+                      r'(https?://[\w\./?=&%-]+)',
+                    ).firstMatch(text);
                     final url = urlMatch != null ? urlMatch.group(0) : null;
                     return GestureDetector(
-                      onTap: url != null ? () async {
-                        try {
-                          final uri = Uri.parse(url);
-                          if (kDebugMode) {
-                            print('Attempting to launch URL: $url');
-                          }
-                          
-                          // First check if we can launch the URL
-                          if (await canLaunchUrl(uri)) {
-                            final launched = await launchUrl(
-                              uri,
-                              mode: LaunchMode.externalApplication,
-                            );
-                            
-                            if (!launched && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Could not launch the map link')),
-                              );
-                            }
-                          } else {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Could not launch the map link - URL cannot be handled')),
-                              );
-                            }
-                          }
-                        } catch (e) {
-                          if (kDebugMode) {
-                            print('Error launching URL: $e');
-                          }
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error launching map: ${e.toString()}')),
-                            );
-                          }
-                        }
-                      } : null,
+                      onTap:
+                          url != null
+                              ? () async {
+                                try {
+                                  final uri = Uri.parse(url);
+                                  if (kDebugMode) {
+                                    print('Attempting to launch URL: $url');
+                                  }
+
+                                  // First check if we can launch the URL
+                                  if (await canLaunchUrl(uri)) {
+                                    final launched = await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+
+                                    if (!launched && context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Could not launch the map link',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Could not launch the map link - URL cannot be handled',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (kDebugMode) {
+                                    print('Error launching URL: $e');
+                                  }
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Error launching map: ${e.toString()}',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                              : null,
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: isUser ? (isWorking ? Colors.green.shade600 : Colors.red.shade600) : Colors.grey.shade200,
+                          color:
+                              isUser
+                                  ? (isWorking
+                                      ? Colors.green.shade600
+                                      : Colors.red.shade600)
+                                  : Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Column(
-                          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          crossAxisAlignment:
+                              isUser
+                                  ? CrossAxisAlignment.end
+                                  : CrossAxisAlignment.start,
                           children: [
                             Text(
                               isUser ? 'You' : 'Pump Assistant',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: isUser ? Colors.white : Colors.grey.shade700,
+                                color:
+                                    isUser
+                                        ? Colors.white
+                                        : Colors.grey.shade700,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -517,7 +577,10 @@ Please respond naturally to the user's message.
                               style: GoogleFonts.poppins(
                                 fontSize: 14,
                                 color: isUser ? Colors.white : Colors.black87,
-                                decoration: url != null ? TextDecoration.underline : null,
+                                decoration:
+                                    url != null
+                                        ? TextDecoration.underline
+                                        : null,
                               ),
                             ),
                           ],
@@ -689,15 +752,16 @@ Please respond naturally to the user's message.
                   child: IconButton(
                     icon: const Icon(Icons.send_rounded),
                     color: Colors.white,
-                    onPressed: _isSending
-                        ? null
-                        : () {
-                            final text = _messageController.text.trim();
-                            if (text.isNotEmpty) {
-                              _sendChatMessage(text: text);
-                              _messageController.clear();
-                            }
-                          },
+                    onPressed:
+                        _isSending
+                            ? null
+                            : () {
+                              final text = _messageController.text.trim();
+                              if (text.isNotEmpty) {
+                                _sendChatMessage(text: text);
+                                _messageController.clear();
+                              }
+                            },
                   ),
                 ),
               ],
@@ -723,7 +787,7 @@ Please respond naturally to the user's message.
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${widget.pump.name} Details',
+                    'Equipment Details',
                     style: GoogleFonts.poppins(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -732,16 +796,13 @@ Please respond naturally to the user's message.
                   ),
                   const SizedBox(height: 20),
                   _buildInfoSection('Current Status'),
-                  _buildInfoRow('Status', widget.pump.status),
-                  _buildInfoRow('Mode', widget.pump.mode),
-                  _buildInfoRow(
-                    'Start Pressure',
-                    '${widget.pump.startPressure} kg/cm²',
-                  ),
-                  _buildInfoRow('Stop Pressure', '${widget.pump.stopPressure}'),
-                  _buildInfoRow('Suction Valve', widget.pump.suctionValve),
-                  _buildInfoRow('Delivery Valve', widget.pump.deliveryValve),
-                  _buildInfoRow('Pressure Gauge', widget.pump.pressureGauge),
+                  _buildInfoRow('Status', 'Working'),
+                  _buildInfoRow('Mode', 'Auto'),
+                  _buildInfoRow('Start Pressure', '2.5 kg/cm²'),
+                  _buildInfoRow('Stop Pressure', '4.0 kg/cm²'),
+                  _buildInfoRow('Suction Valve', 'Open'),
+                  _buildInfoRow('Delivery Valve', 'Open'),
+                  _buildInfoRow('Pressure Gauge', 'Normal'),
                   const SizedBox(height: 20),
                   _buildInfoSection('Chat Commands Examples'),
                   _buildCommandExample('Change status to Working'),

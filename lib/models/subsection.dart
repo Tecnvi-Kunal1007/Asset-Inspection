@@ -17,20 +17,18 @@ class Subsection {
 
   factory Subsection.fromMap(Map<String, dynamic> map) {
     final contractorMap = map['contractors'] as Map<String, dynamic>?;
-    final contractorName = contractorMap != null
-        ? contractorMap['name'] as String? ?? 'Unknown'
-        : 'Unknown';
+    final contractorName =
+        contractorMap != null
+            ? contractorMap['name'] as String? ?? 'Unknown'
+            : 'Unknown';
 
     return Subsection(
       id: map['id'] as String,
       sectionId: map['section_id'] as String,
       name: map['name'] as String,
-      additionalData: map['data'] != null
-          ? Map<String, dynamic>.from(map['data'])
-          : null,
+      additionalData:
+          map['data'] != null ? Map<String, dynamic>.from(map['data']) : null,
       contractorName: contractorName,
     );
   }
-
-
 }

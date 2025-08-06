@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/supabase_service.dart';
-import '../models/site.dart';
-import 'site_details_screen.dart';
-import 'areas_screen.dart';
+// import '../models/site.dart'; // Model doesn't exist
+// import 'site_details_screen.dart'; // Screen doesn't exist
+// import 'areas_screen.dart'; // Screen doesn't exist
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,10 +13,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _supabaseService = SupabaseService();
-  List<Site> _sites = [];
+  List<Map<String, dynamic>> _sites = [];
   bool _isLoading = true;
   final _searchController = TextEditingController();
-  List<Site> _filteredSites = [];
+  List<Map<String, dynamic>> _filteredSites = [];
 
   @override
   void initState() {
@@ -39,10 +39,10 @@ class _HomeScreenState extends State<HomeScreen> {
             _sites
                 .where(
                   (site) =>
-                      site.siteName.toLowerCase().contains(
+                      (site['site_name'] ?? '').toLowerCase().contains(
                         query.toLowerCase(),
                       ) ||
-                      site.siteLocation.toLowerCase().contains(
+                      (site['site_location'] ?? '').toLowerCase().contains(
                         query.toLowerCase(),
                       ),
                 )
@@ -53,7 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadSites() async {
     try {
-      final sites = await _supabaseService.getSites();
+      // TODO: Implement getSites method
+      // final sites = await _supabaseService.getSites();
+      final sites = <Map<String, dynamic>>[];
       setState(() {
         _sites = sites;
         _filteredSites = List.from(sites);
@@ -218,9 +220,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const AreasScreen(),
+                        // TODO: Implement AreasScreen
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Areas screen coming soon!'),
                           ),
                         );
                       },
@@ -250,13 +253,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.only(bottom: 16),
                     child: InkWell(
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (context) => SiteDetailsScreen(
-                                  site: site,
-                                  assignedSections: [],
-                                ),
+                        // TODO: Implement SiteDetailsScreen
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Site details coming soon!'),
                           ),
                         );
                       },
@@ -304,7 +304,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              site.siteName,
+                                              site['site_name'] ??
+                                                  'Unknown Site',
                                               style: const TextStyle(
                                                 fontSize: 18,
                                                 fontWeight: FontWeight.bold,
@@ -321,7 +322,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 const SizedBox(width: 4),
                                                 Expanded(
                                                   child: Text(
-                                                    site.siteLocation,
+                                                    site['site_location'] ??
+                                                        'Unknown Location',
                                                     style: TextStyle(
                                                       color: Colors.grey[600],
                                                     ),
@@ -364,9 +366,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (context) => const AreasScreen()));
+          // TODO: Implement AreasScreen
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Add site feature coming soon!')),
+          );
         },
         icon: const Icon(Icons.add),
         label: const Text('Add Site'),

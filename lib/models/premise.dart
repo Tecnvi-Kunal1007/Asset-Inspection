@@ -24,7 +24,12 @@ class Premise {
       name: data['name'] as String? ?? '',
       additionalData: Map<String, dynamic>.from(data)..remove('name'),
       contractorName: map['contractor_name'] as String? ?? 'Unknown',
-      qr_Url: map['qr_url'] != null ? map['qr_url'] as String : (map['qrUrl'] != null ? map['qrUrl'] as String : null), // Extract QR URL from map with improved null handling
+      qr_Url:
+          map['qr_url'] != null
+              ? map['qr_url'] as String
+              : (map['qrUrl'] != null
+                  ? map['qrUrl'] as String
+                  : null), // Extract QR URL from map with improved null handling
     );
   }
 
@@ -33,10 +38,7 @@ class Premise {
     return {
       'id': id,
       'contractor_id': contractorId,
-      'data': {
-        'name': name,
-        ...additionalData,
-      },
+      'data': {'name': name, ...additionalData},
       'contractor_name': contractorName,
       'qr_url': qr_Url,
     };
@@ -65,7 +67,10 @@ class Premise {
   String? get location => additionalData['location'] as String?;
 
   // Check if premise has a valid QR code
-  bool get hasQrCode => qr_Url != null && qr_Url!.isNotEmpty && Uri.tryParse(qr_Url!)?.hasScheme == true;
+  bool get hasQrCode =>
+      qr_Url != null &&
+      qr_Url!.isNotEmpty &&
+      Uri.tryParse(qr_Url!)?.hasScheme == true;
 
   @override
   String toString() {

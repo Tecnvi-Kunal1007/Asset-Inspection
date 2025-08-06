@@ -17,7 +17,8 @@ class CreatePremiseScreen extends StatefulWidget {
   State<CreatePremiseScreen> createState() => _CreatePremiseScreenState();
 }
 
-class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerProviderStateMixin {
+class _CreatePremiseScreenState extends State<CreatePremiseScreen>
+    with TickerProviderStateMixin {
   final _supabaseService = SupabaseService();
   final _supabase = Supabase.instance.client;
   final _searchController = TextEditingController();
@@ -46,7 +47,9 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.1),
       end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
+    ).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadContractorDetails();
@@ -79,9 +82,9 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
             .eq('id', user.id)
             .single()
             .catchError((_) {
-          setState(() => _isLoading = false);
-          throw Exception('Contractor profile not found');
-        });
+              setState(() => _isLoading = false);
+              throw Exception('Contractor profile not found');
+            });
 
         setState(() {
           _contractorName = contractor['name'] as String?;
@@ -137,7 +140,12 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
       List<Premise> createdPremises = [];
       for (var form in validForms) {
         final data = form.getData();
-        final createdPremise = await _supabaseService.createPremise(user.id, data, name: '', additionalData: {});
+        final createdPremise = await _supabaseService.createPremise(
+          user.id,
+          data,
+          name: '',
+          additionalData: {},
+        );
         createdPremises.add(createdPremise as Premise);
       }
 
@@ -153,23 +161,27 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
 
       if (!mounted) return;
       _showSnackBar(
-          '${createdPremises.length} premises created successfully!',
-          isSuccess: true
+        '${createdPremises.length} premises created successfully!',
+        isSuccess: true,
       );
 
       if (createdPremises.length == 1) {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => PremiseDetailsScreen(premise: createdPremises.first),
+            builder:
+                (context) =>
+                    PremiseDetailsScreen(premise: createdPremises.first),
           ),
         );
       }
     } on PostgrestException catch (e) {
       Navigator.of(context).pop();
-      _showSnackBar(e.code == '23514'
-          ? 'Invalid premise name. Please ensure it starts with a capital letter.'
-          : 'Error creating premises: ${e.message}');
+      _showSnackBar(
+        e.code == '23514'
+            ? 'Invalid premise name. Please ensure it starts with a capital letter.'
+            : 'Error creating premises: ${e.message}',
+      );
     } catch (e) {
       Navigator.of(context).pop();
       _showSnackBar('Error creating premises: $e');
@@ -189,10 +201,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
               children: [
                 const CircularProgressIndicator(),
                 const SizedBox(width: 20),
-                Text(
-                  'Creating premises...',
-                  style: GoogleFonts.poppins(),
-                ),
+                Text('Creating premises...', style: GoogleFonts.poppins()),
               ],
             ),
           ),
@@ -245,9 +254,14 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
 
   @override
   Widget build(BuildContext context) {
-    final filteredPremises = _premises
-        .where((premise) => premise.name.toLowerCase().contains(_searchController.text.toLowerCase()))
-        .toList();
+    final filteredPremises =
+        _premises
+            .where(
+              (premise) => premise.name.toLowerCase().contains(
+                _searchController.text.toLowerCase(),
+              ),
+            )
+            .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -282,60 +296,68 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          if (!_isCreating) _buildHeaderCard(),
-          if (_isCreating)
-            Expanded(
-              child: AnimatedBuilder(
-                animation: _animationController,
-                builder: (context, child) => FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: _buildCreateForm(),
-                  ),
-                ),
-              ),
-            ),
-          if (!_isCreating)
-            Expanded(
-              child: Column(
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
                 children: [
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextField(
-                      controller: _searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search your premises...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
+                  if (!_isCreating) _buildHeaderCard(),
+                  if (_isCreating)
+                    Expanded(
+                      child: AnimatedBuilder(
+                        animation: _animationController,
+                        builder:
+                            (context, child) => FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: SlideTransition(
+                                position: _slideAnimation,
+                                child: _buildCreateForm(),
+                              ),
+                            ),
                       ),
-                      onChanged: (value) => setState(() {}),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: filteredPremises.isEmpty
-                        ? _buildEmptyState()
-                        : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: filteredPremises.length,
-                      itemBuilder: (context, index) => _buildPremiseCard(filteredPremises[index]),
+                  if (!_isCreating)
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: 'Search your premises...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                filled: true,
+                                fillColor: Colors.white,
+                              ),
+                              onChanged: (value) => setState(() {}),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child:
+                                filteredPremises.isEmpty
+                                    ? _buildEmptyState()
+                                    : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                      ),
+                                      itemCount: filteredPremises.length,
+                                      itemBuilder:
+                                          (context, index) => _buildPremiseCard(
+                                            filteredPremises[index],
+                                          ),
+                                    ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
-            ),
-        ],
-      ),
     );
   }
 
@@ -599,7 +621,10 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: ThemeHelper.primaryBlue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -678,9 +703,13 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
                               ),
                             ),
                           ),
-                          if (premise.qr_Url != null && premise.qr_Url!.isNotEmpty)
+                          if (premise.qr_Url != null &&
+                              premise.qr_Url!.isNotEmpty)
                             IconButton(
-                              icon: Icon(Icons.download, color: ThemeHelper.primaryBlue),
+                              icon: Icon(
+                                Icons.download,
+                                color: ThemeHelper.primaryBlue,
+                              ),
                               onPressed: () => _downloadQrCode(premise.qr_Url!),
                             ),
                         ],
@@ -769,7 +798,8 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
     try {
       final directory = await getExternalStorageDirectory();
       if (directory == null) throw Exception('Storage directory not found');
-      final filePath = '${directory.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png';
+      final filePath =
+          '${directory.path}/qr_${DateTime.now().millisecondsSinceEpoch}.png';
       final response = await http.get(Uri.parse(qrUrl));
       if (response.statusCode == 200) {
         await File(filePath).writeAsBytes(response.bodyBytes);
@@ -780,9 +810,9 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen> with TickerPr
         throw Exception('Failed to download QR code');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error downloading QR code: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error downloading QR code: $e')));
     }
   }
 }
@@ -806,11 +836,13 @@ class PremiseForm {
   Map<String, dynamic> getData() {
     final data = {
       'name': nameController.text,
-      'location': locationController.text.isNotEmpty ? locationController.text : null,
+      'location':
+          locationController.text.isNotEmpty ? locationController.text : null,
     };
 
     for (var pair in keyValuePairs) {
-      if (pair['key']?.isNotEmpty == true && pair['value']?.isNotEmpty == true) {
+      if (pair['key']?.isNotEmpty == true &&
+          pair['value']?.isNotEmpty == true) {
         data[pair['key']!] = pair['value'];
       }
     }
@@ -827,9 +859,7 @@ class PremiseForm {
             labelText: 'Premise Name *',
             hintText: 'e.g., Office Building, Shopping Mall',
             prefixIcon: Icon(Icons.business, color: ThemeHelper.primaryBlue),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             isDense: true,
           ),
         ),
@@ -840,9 +870,7 @@ class PremiseForm {
             labelText: 'Location',
             hintText: 'e.g., Delhi, Mumbai, Bangalore',
             prefixIcon: Icon(Icons.location_on, color: ThemeHelper.primaryBlue),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             isDense: true,
           ),
         ),
@@ -907,13 +935,8 @@ class PremiseForm {
             keyValuePairs.add({});
           },
           icon: const Icon(Icons.add, size: 16),
-          label: Text(
-            'Add Property',
-            style: GoogleFonts.poppins(fontSize: 12),
-          ),
-          style: TextButton.styleFrom(
-            foregroundColor: ThemeHelper.primaryBlue,
-          ),
+          label: Text('Add Property', style: GoogleFonts.poppins(fontSize: 12)),
+          style: TextButton.styleFrom(foregroundColor: ThemeHelper.primaryBlue),
         ),
       ],
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/site_assignment_service.dart';
+// import '../services/site_assignment_service.dart'; // Service doesn't exist
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -8,7 +8,7 @@ import '../services/file_upload_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/freelancer_service.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../services/area_assignment_service.dart';
+// import '../services/area_assignment_service.dart'; // Service doesn't exist
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'dart:typed_data';
@@ -23,7 +23,7 @@ class EmployeeManagementScreen extends StatefulWidget {
 
 class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   final _supabase = Supabase.instance.client;
-  final _siteAssignmentService = SiteAssignmentService();
+  // final _siteAssignmentService = SiteAssignmentService(); // Service doesn't exist
   final _formKey = GlobalKey<FormState>();
   final _uuid = const Uuid();
   final _fileUploadService = FileUploadService();
@@ -41,12 +41,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   final _experienceYearsController = TextEditingController();
   final _notesController = TextEditingController();
   final _skillController = TextEditingController();
-  
+
   // For non-web platforms
   File? _resumeFile;
   // For web platform
   PlatformFile? _webResumeFile;
-  
+
   String? _resumeFileName;
   File? _profilePhoto;
 
@@ -106,7 +106,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        
+
         // Check if it's a PDF by extension
         if (!file.name.toLowerCase().endsWith('.pdf')) {
           if (mounted) {
@@ -363,10 +363,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       }
 
       // Get available sites (unassigned + assigned to this employee)
-      final sites = await _siteAssignmentService.getAvailableSitesForAssignment(
-        user.id,
-        employee['id'],
-      );
+      // TODO: Implement site assignment service
+      final sites = <Map<String, dynamic>>[];
+      // final sites = await _siteAssignmentService.getAvailableSitesForAssignment(
+      //   user.id,
+      //   employee['id'],
+      // );
 
       // Get already assigned sites for this employee
       final assignmentsResponse = await supabase
@@ -417,17 +419,18 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                               value: isAssigned,
                               onChanged: (bool? value) async {
                                 try {
+                                  // TODO: Implement site assignment functionality
                                   if (value == true) {
                                     // Assign site using service
-                                    await _siteAssignmentService.assignSite(
-                                      siteId: site['id'],
-                                      assignedToId: employee['id'],
-                                    );
+                                    // await _siteAssignmentService.assignSite(
+                                    //   siteId: site['id'],
+                                    //   assignedToId: employee['id'],
+                                    // );
                                   } else {
                                     // Unassign site using service
-                                    await _siteAssignmentService.unassignSite(
-                                      site['id'],
-                                    );
+                                    // await _siteAssignmentService.unassignSite(
+                                    //   site['id'],
+                                    // );
                                   }
 
                                   if (mounted) {
@@ -507,11 +510,13 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
       final contractorId = contractorResponse['id'];
 
-      final areaAssignmentService = AreaAssignmentService();
-      final areas = await areaAssignmentService.getAvailableAreasForAssignment(
-        contractorId,
-        employee['id'],
-      );
+      // TODO: Implement area assignment service
+      // final areaAssignmentService = AreaAssignmentService();
+      // final areas = await areaAssignmentService.getAvailableAreasForAssignment(
+      //   contractorId,
+      //   employee['id'],
+      // );
+      final areas = <Map<String, dynamic>>[];
 
       final assignmentsResponse = await supabase
           .from('area_assignments')
@@ -632,11 +637,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                                                       .contains('pumps_floor'),
                                                   () async {
                                                     try {
-                                                      await areaAssignmentService
-                                                          .unassignArea(
-                                                            areaId,
-                                                            employee['id'],
-                                                          );
+                                                      // TODO: Implement area assignment
+                                                      // await areaAssignmentService
+                                                      //     .unassignArea(
+                                                      //       areaId,
+                                                      //       employee['id'],
+                                                      //     );
                                                       if (mounted) {
                                                         Navigator.pop(context);
                                                         _showAssignAreaDialog(
@@ -671,11 +677,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                                                       ),
                                                   () async {
                                                     try {
-                                                      await areaAssignmentService
-                                                          .unassignArea(
-                                                            areaId,
-                                                            employee['id'],
-                                                          );
+                                                      // TODO: Implement area assignment
+                                                      // await areaAssignmentService
+                                                      //     .unassignArea(
+                                                      //       areaId,
+                                                      //       employee['id'],
+                                                      //     );
                                                       if (mounted) {
                                                         Navigator.pop(context);
                                                         _showAssignAreaDialog(
@@ -769,17 +776,18 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
                                                 if (assignmentType != null) {
                                                   try {
-                                                    await areaAssignmentService
-                                                        .assignArea(
-                                                          areaId: areaId,
-                                                          assignedToId:
-                                                              employee['id'],
-                                                          assignedToType:
-                                                              'employee',
-                                                          assignedById: user.id,
-                                                          assignmentType:
-                                                              assignmentType,
-                                                        );
+                                                    // TODO: Implement area assignment
+                                                    // await areaAssignmentService
+                                                    //     .assignArea(
+                                                    //       areaId: areaId,
+                                                    //       assignedToId:
+                                                    //           employee['id'],
+                                                    //       assignedToType:
+                                                    //           'employee',
+                                                    //       assignedById: user.id,
+                                                    //       assignmentType:
+                                                    //           assignmentType,
+                                                    //     );
                                                     if (mounted) {
                                                       Navigator.pop(context);
                                                       _showAssignAreaDialog(

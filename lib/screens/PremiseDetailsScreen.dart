@@ -36,7 +36,8 @@ class PremiseDetailsScreen extends StatefulWidget {
   State<PremiseDetailsScreen> createState() => _PremiseDetailsScreenState();
 }
 
-class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with TickerProviderStateMixin {
+class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
+    with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   MobileScannerController? controller;
@@ -78,28 +79,29 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
   void _showScanResultDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Scan Result'),
-        content: Text(scannedData ?? 'No data scanned'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              controller?.start();
-            },
-            child: Text('Close'),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Scan Result'),
+            content: Text(scannedData ?? 'No data scanned'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  controller?.start();
+                },
+                child: Text('Close'),
+              ),
+              if (scannedData != null)
+                TextButton(
+                  onPressed: () {
+                    // Add share logic here (e.g., using share_plus package)
+                    Navigator.pop(context);
+                    controller?.start();
+                  },
+                  child: Text('Share'),
+                ),
+            ],
           ),
-          if (scannedData != null)
-            TextButton(
-              onPressed: () {
-                // Add share logic here (e.g., using share_plus package)
-                Navigator.pop(context);
-                controller?.start();
-              },
-              child: Text('Share'),
-            ),
-        ],
-      ),
     );
   }
 
@@ -107,20 +109,27 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
     try {
       final directory = await getExternalStorageDirectory();
       if (directory == null) throw Exception('Storage directory not found');
-      
+
       // Use premise name in the filename for better identification
-      final sanitizedName = widget.premise.name.replaceAll(RegExp(r'[^\w\s]+'), '').replaceAll(' ', '_');
-      final filePath = '${directory.path}/${sanitizedName}_QR_${DateTime.now().millisecondsSinceEpoch}.png';
-      
+      final sanitizedName = widget.premise.name
+          .replaceAll(RegExp(r'[^\w\s]+'), '')
+          .replaceAll(' ', '_');
+      final filePath =
+          '${directory.path}/${sanitizedName}_QR_${DateTime.now().millisecondsSinceEpoch}.png';
+
       final response = await http.get(Uri.parse(qrUrl));
       if (response.statusCode == 200) {
         await File(filePath).writeAsBytes(response.bodyBytes);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('QR code for ${widget.premise.name} downloaded successfully'),
+            content: Text(
+              'QR code for ${widget.premise.name} downloaded successfully',
+            ),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             action: SnackBarAction(
               label: 'VIEW',
               textColor: Colors.white,
@@ -139,7 +148,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
           content: Text('Error downloading QR code: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -147,11 +158,11 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
 
   Future<void> _generateQrCode() async {
     final supabaseService = SupabaseService();
-    
+
     setState(() {
       _isGeneratingQr = true;
     });
-    
+
     try {
       // Show a loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,49 +171,56 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
           duration: Duration(seconds: 2),
         ),
       );
-      
+
       // Call the regenerateQrCode method from SupabaseService
       final qrUrl = await supabaseService.regenerateQrCode(widget.premise.id);
-      
+
       // Since we can't modify widget.premise directly, we'll refresh the screen
       setState(() {
         _isGeneratingQr = false;
       });
-      
+
       // Force a rebuild of the screen to reflect the updated QR URL
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => PremiseDetailsScreen(
-            premise: widget.premise.copyWith(qrUrl: qrUrl),
-            section: widget.section,
-            subsection: widget.subsection,
-            product: widget.product,
-          ),
+          builder:
+              (context) => PremiseDetailsScreen(
+                premise: widget.premise.copyWith(qrUrl: qrUrl),
+                section: widget.section,
+                subsection: widget.subsection,
+                product: widget.product,
+              ),
         ),
       );
-      
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('QR code for ${widget.premise.name} generated successfully'),
+          content: Text(
+            'QR code for ${widget.premise.name} generated successfully',
+          ),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     } catch (e) {
       setState(() {
         _isGeneratingQr = false;
       });
-      
+
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error generating QR code: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }
@@ -254,10 +272,14 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
               _buildDetailsCard(),
               const SizedBox(height: 20),
               // Scanner Section
-              if (widget.premise.qr_Url != null && widget.premise.qr_Url!.isNotEmpty && widget.premise.qr_Url != 'pending')
+              if (widget.premise.qr_Url != null &&
+                  widget.premise.qr_Url!.isNotEmpty &&
+                  widget.premise.qr_Url != 'pending')
                 Card(
                   elevation: 4,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
@@ -371,14 +393,18 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                           Text(
                             'by ${widget.premise.contractorName}',
                             style: GoogleFonts.poppins(
-                              fontSize: ResponsiveHelper.getFontSize(context, 16),
+                              fontSize: ResponsiveHelper.getFontSize(
+                                context,
+                                16,
+                              ),
                               fontWeight: FontWeight.w500,
                               color: ThemeHelper.textSecondary,
                             ),
                           ),
                         ],
                       ),
-                      if (widget.premise.additionalData['location'] != null) ...[
+                      if (widget.premise.additionalData['location'] !=
+                          null) ...[
                         const SizedBox(height: 4),
                         Row(
                           children: [
@@ -389,9 +415,13 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              widget.premise.additionalData['location'].toString(),
+                              widget.premise.additionalData['location']
+                                  .toString(),
                               style: GoogleFonts.poppins(
-                                fontSize: ResponsiveHelper.getFontSize(context, 14),
+                                fontSize: ResponsiveHelper.getFontSize(
+                                  context,
+                                  14,
+                                ),
                                 color: ThemeHelper.textSecondary,
                               ),
                             ),
@@ -403,7 +433,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                 ),
                 // QR Code Section - Always show this section, but with different content based on QR availability
                 ...[
-                  if (widget.premise.qr_Url != null && widget.premise.qr_Url!.isNotEmpty && widget.premise.qr_Url != 'pending')
+                  if (widget.premise.qr_Url != null &&
+                      widget.premise.qr_Url!.isNotEmpty &&
+                      widget.premise.qr_Url != 'pending')
                     Column(
                       children: [
                         Container(
@@ -412,7 +444,10 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: ThemeHelper.primaryBlue.withOpacity(0.3), width: 2),
+                            border: Border.all(
+                              color: ThemeHelper.primaryBlue.withOpacity(0.3),
+                              width: 2,
+                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withOpacity(0.1),
@@ -428,26 +463,49 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                                 Image.network(
                                   widget.premise.qr_Url!,
                                   fit: BoxFit.contain,
-                                  loadingBuilder: (context, child, loadingProgress) {
+                                  loadingBuilder: (
+                                    context,
+                                    child,
+                                    loadingProgress,
+                                  ) {
                                     if (loadingProgress == null) return child;
-                                    return Center(child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                          : null,
-                                      valueColor: AlwaysStoppedAnimation<Color>(ThemeHelper.primaryBlue),
-                                    ));
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        value:
+                                            loadingProgress
+                                                        .expectedTotalBytes !=
+                                                    null
+                                                ? loadingProgress
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
+                                                : null,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              ThemeHelper.primaryBlue,
+                                            ),
+                                      ),
+                                    );
                                   },
                                   errorBuilder: (context, error, stackTrace) {
                                     print('Error loading QR code: $error');
                                     print('QR URL: ${widget.premise.qr_Url}');
                                     return Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.qr_code_2, size: 40, color: Colors.grey),
+                                        Icon(
+                                          Icons.qr_code_2,
+                                          size: 40,
+                                          color: Colors.grey,
+                                        ),
                                         const SizedBox(height: 4),
                                         Text(
                                           'QR Error',
-                                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
+                                          ),
                                           textAlign: TextAlign.center,
                                         ),
                                       ],
@@ -483,10 +541,16 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                           style: ElevatedButton.styleFrom(
                             backgroundColor: ThemeHelper.primaryBlue,
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
                           ),
-                          onPressed: () => _downloadQrCode(widget.premise.qr_Url!),
+                          onPressed:
+                              () => _downloadQrCode(widget.premise.qr_Url!),
                         ),
                       ],
                     )
@@ -505,11 +569,18 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.qr_code_2, size: 40, color: Colors.grey.shade400),
+                                Icon(
+                                  Icons.qr_code_2,
+                                  size: 40,
+                                  color: Colors.grey.shade400,
+                                ),
                                 const SizedBox(height: 8),
                                 Text(
                                   'No QR Code',
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
                                   textAlign: TextAlign.center,
                                 ),
                               ],
@@ -518,17 +589,36 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton.icon(
-                          icon: _isGeneratingQr 
-                            ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black87))
-                            : const Icon(Icons.refresh, size: 18),
-                          label: Text(_isGeneratingQr ? 'Generating...' : 'Generate QR'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _isGeneratingQr ? Colors.grey.shade400 : Colors.grey.shade300,
-                            foregroundColor: Colors.black87,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          icon:
+                              _isGeneratingQr
+                                  ? SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.black87,
+                                    ),
+                                  )
+                                  : const Icon(Icons.refresh, size: 18),
+                          label: Text(
+                            _isGeneratingQr ? 'Generating...' : 'Generate QR',
                           ),
-                          onPressed: _isGeneratingQr ? null : () => _generateQrCode(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                _isGeneratingQr
+                                    ? Colors.grey.shade400
+                                    : Colors.grey.shade300,
+                            foregroundColor: Colors.black87,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                          ),
+                          onPressed:
+                              _isGeneratingQr ? null : () => _generateQrCode(),
                         ),
                       ],
                     ),
@@ -536,7 +626,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
               ],
             ),
             // QR Code Info Banner - Show if QR is available
-            if (widget.premise.qr_Url != null && widget.premise.qr_Url!.isNotEmpty && widget.premise.qr_Url != 'pending') ...[
+            if (widget.premise.qr_Url != null &&
+                widget.premise.qr_Url!.isNotEmpty &&
+                widget.premise.qr_Url != 'pending') ...[
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -560,7 +652,11 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                         color: Colors.green.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(Icons.qr_code_scanner, color: Colors.green.shade700, size: 24),
+                      child: Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.green.shade700,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -680,7 +776,8 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isActive ? ThemeHelper.primaryBlue.withOpacity(0.1) : Colors.white,
+        color:
+            isActive ? ThemeHelper.primaryBlue.withOpacity(0.1) : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isActive ? ThemeHelper.primaryBlue : Colors.grey.shade300,
@@ -707,7 +804,10 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                   style: GoogleFonts.poppins(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: isActive ? ThemeHelper.primaryBlue : ThemeHelper.textPrimary,
+                    color:
+                        isActive
+                            ? ThemeHelper.primaryBlue
+                            : ThemeHelper.textPrimary,
                   ),
                 ),
                 Text(
@@ -759,7 +859,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
         const SizedBox(height: 12),
         Card(
           elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -770,15 +872,17 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                   subtitle: 'Add floors, wings, or major areas',
                   icon: Icons.layers,
                   color: Colors.green,
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CreateSectionScreen(
-                        premise: widget.premise,
-                        premiseId: widget.premise.id,
+                  onPressed:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => CreateSectionScreen(
+                                premise: widget.premise,
+                                premiseId: widget.premise.id,
+                              ),
+                        ),
                       ),
-                    ),
-                  ),
                 ),
                 const SizedBox(height: 16),
                 _buildActionButton(
@@ -791,11 +895,12 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => CreatePremiseProductScreen(
-                          premise: widget.premise,
-                          premiseId: widget.premise.id,
-                          premiseName: widget.premise.name,
-                        ),
+                        builder:
+                            (context) => CreatePremiseProductScreen(
+                              premise: widget.premise,
+                              premiseId: widget.premise.id,
+                              premiseName: widget.premise.name,
+                            ),
                       ),
                     );
                   },
@@ -862,11 +967,7 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
                     ],
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  color: color,
-                  size: 16,
-                ),
+                Icon(Icons.arrow_forward_ios, color: color, size: 16),
               ],
             ),
           ),
@@ -876,7 +977,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
   }
 
   Widget _buildDetailsCard() {
-    final additionalData = Map<String, dynamic>.from(widget.premise.additionalData);
+    final additionalData = Map<String, dynamic>.from(
+      widget.premise.additionalData,
+    );
     additionalData.remove('name');
     additionalData.remove('location');
 
@@ -898,64 +1001,67 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
         const SizedBox(height: 12),
         Card(
           elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
-              children: additionalData.entries.map((entry) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: ThemeHelper.primaryBlue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.info_outline,
-                          color: ThemeHelper.primaryBlue,
-                          size: 16,
-                        ),
+              children:
+                  additionalData.entries.map((entry) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.key.toString().toUpperCase(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: ThemeHelper.textSecondary,
-                                letterSpacing: 0.5,
-                              ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: ThemeHelper.primaryBlue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              entry.value?.toString() ?? 'N/A',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: ThemeHelper.textPrimary,
-                              ),
+                            child: Icon(
+                              Icons.info_outline,
+                              color: ThemeHelper.primaryBlue,
+                              size: 16,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.key.toString().toUpperCase(),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: ThemeHelper.textSecondary,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  entry.value?.toString() ?? 'N/A',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: ThemeHelper.textPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
+                    );
+                  }).toList(),
             ),
           ),
         ),
@@ -968,7 +1074,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen> with Ticker
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Row(
             children: [
               Icon(Icons.construction, color: Colors.orange),
@@ -1019,8 +1127,10 @@ class ScannerOverlayClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    final path = Path()
-      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height)); // Full screen
+    final path =
+        Path()..addRect(
+          Rect.fromLTWH(0, 0, size.width, size.height),
+        ); // Full screen
     path.addRRect(
       RRect.fromRectAndCorners(
         Rect.fromCenter(

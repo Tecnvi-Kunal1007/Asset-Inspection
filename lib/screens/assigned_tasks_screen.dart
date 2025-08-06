@@ -270,24 +270,26 @@ class _AssignedTasksScreenState extends State<AssignedTasksScreen> {
   Future<void> _getCurrentLocation() async {
     try {
       final locationHelper = LocationHelper();
-      
+
       // Check if location is available and request permission if needed
       bool isAvailable = await locationHelper.isLocationAvailable();
       if (!isAvailable) {
-        bool permissionGranted = await locationHelper.requestLocationPermission(context);
+        bool permissionGranted = await locationHelper.requestLocationPermission(
+          context,
+        );
         if (!permissionGranted) {
           // User denied permission, exit early
           return;
         }
       }
-      
+
       // Get location using the helper
       final position = await locationHelper.getCurrentLocationSafely(context);
       if (position != null) {
         setState(() {
           _currentPosition = position;
         });
-        
+
         // Get address using the helper
         final address = await locationHelper.getCurrentAddressSafely(context);
         if (address != null) {

@@ -5,7 +5,7 @@ import 'package:pump_management_system/screens/task_management_screen.dart';
 import 'package:pump_management_system/screens/view_freelancers_screen.dart';
 import 'package:pump_management_system/screens/work_reports_screen.dart';
 import '../widgets/floating_chat.dart';
-import 'area_inspection_status_screen.dart';
+// import 'area_inspection_status_screen.dart'; // Screen doesn't exist
 import 'employee_management_screen.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:math' as math;
@@ -515,13 +515,12 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
         subtitle: 'Track inspection progress',
         icon: Icons.checklist,
         color: const Color(0xFFFF8E53),
-        onTap:
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const AreaInspectionStatusScreen(),
-              ),
-            ),
+        onTap: () {
+          // TODO: Implement area inspection status screen
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Feature coming soon!')));
+        },
       ),
     ];
 

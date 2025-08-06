@@ -3,9 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/freelancer_service.dart';
 import '../models/freelancer.dart';
-import '../services/site_assignment_service.dart';
+// import '../services/site_assignment_service.dart'; // Service doesn't exist
 import 'package:google_fonts/google_fonts.dart';
-import '../services/area_assignment_service.dart';
+// import '../services/area_assignment_service.dart'; // Service doesn't exist
 import 'add_freelancer_screen.dart';
 
 class ViewFreelancersScreen extends StatefulWidget {
@@ -25,7 +25,7 @@ class _ViewFreelancersScreenState extends State<ViewFreelancersScreen>
   String _selectedSkill = 'All';
   final Set<String> _locations = {'All'};
   final Set<String> _skills = {'All'};
-  final _siteAssignmentService = SiteAssignmentService();
+  // final _siteAssignmentService = SiteAssignmentService(); // Service doesn't exist
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   TextEditingController _searchController = TextEditingController();
@@ -213,10 +213,12 @@ class _ViewFreelancersScreenState extends State<ViewFreelancersScreen>
         return;
       }
 
-      final sites = await _siteAssignmentService.getAvailableSitesForAssignment(
-        user.id,
-        freelancer.id,
-      );
+      // TODO: Implement site assignment service
+      // final sites = await _siteAssignmentService.getAvailableSitesForAssignment(
+      //   user.id,
+      //   freelancer.id,
+      // );
+      final sites = <Map<String, dynamic>>[];
 
       final assignmentsResponse = await supabase
           .from('site_assignments')
@@ -439,11 +441,13 @@ class _ViewFreelancersScreenState extends State<ViewFreelancersScreen>
 
       final contractorId = contractorResponse['id'];
 
-      final areaAssignmentService = AreaAssignmentService();
-      final areas = await areaAssignmentService.getAvailableAreasForAssignment(
-        contractorId,
-        freelancer['id'],
-      );
+      // TODO: Implement area assignment service
+      // final areaAssignmentService = AreaAssignmentService();
+      // final areas = await areaAssignmentService.getAvailableAreasForAssignment(
+      //   contractorId,
+      //   freelancer['id'],
+      // );
+      final areas = <Map<String, dynamic>>[];
 
       final assignmentsResponse = await supabase
           .from('area_assignments')
@@ -564,11 +568,12 @@ class _ViewFreelancersScreenState extends State<ViewFreelancersScreen>
                                                       .contains('pumps_floor'),
                                                   () async {
                                                     try {
-                                                      await areaAssignmentService
-                                                          .unassignArea(
-                                                            areaId,
-                                                            freelancer['id'],
-                                                          );
+                                                      // TODO: Implement area assignment
+                                                      // await areaAssignmentService
+                                                      //     .unassignArea(
+                                                      //       areaId,
+                                                      //       freelancer['id'],
+                                                      //     );
                                                       if (mounted) {
                                                         Navigator.pop(context);
                                                         _showAssignAreaDialog(
@@ -603,11 +608,12 @@ class _ViewFreelancersScreenState extends State<ViewFreelancersScreen>
                                                       ),
                                                   () async {
                                                     try {
-                                                      await areaAssignmentService
-                                                          .unassignArea(
-                                                            areaId,
-                                                            freelancer['id'],
-                                                          );
+                                                      // TODO: Implement area assignment
+                                                      // await areaAssignmentService
+                                                      //     .unassignArea(
+                                                      //       areaId,
+                                                      //       freelancer['id'],
+                                                      //     );
                                                       if (mounted) {
                                                         Navigator.pop(context);
                                                         _showAssignAreaDialog(
@@ -701,17 +707,18 @@ class _ViewFreelancersScreenState extends State<ViewFreelancersScreen>
 
                                                 if (assignmentType != null) {
                                                   try {
-                                                    await areaAssignmentService
-                                                        .assignArea(
-                                                          areaId: areaId,
-                                                          assignedToId:
-                                                              freelancer['id'],
-                                                          assignedToType:
-                                                              'freelancer',
-                                                          assignedById: user.id,
-                                                          assignmentType:
-                                                              assignmentType,
-                                                        );
+                                                    // TODO: Implement area assignment
+                                                    // await areaAssignmentService
+                                                    //     .assignArea(
+                                                    //       areaId: areaId,
+                                                    //       assignedToId:
+                                                    //           freelancer['id'],
+                                                    //       assignedToType:
+                                                    //           'freelancer',
+                                                    //       assignedById: user.id,
+                                                    //       assignmentType:
+                                                    //           assignmentType,
+                                                    //     );
                                                     if (mounted) {
                                                       Navigator.pop(context);
                                                       _showAssignAreaDialog(

@@ -36,15 +36,15 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
   final _freelancerService = FreelancerService();
   final _imagePicker = ImagePicker();
   bool _isLoading = false;
-  
+
   // For non-web platforms
   File? _resumeFile;
   File? _profilePhoto;
-  
+
   // For web platform
   PlatformFile? _webResumeFile;
   Uint8List? _webProfilePhoto;
-  
+
   String? _resumeFileName;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -89,9 +89,9 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
 
       if (result != null && result.files.isNotEmpty) {
         final file = result.files.first;
-        
+
         // Check if it's a PDF by extension
-        if (!file.path!.toLowerCase().endsWith('.pdf') && 
+        if (!file.path!.toLowerCase().endsWith('.pdf') &&
             !file.name.toLowerCase().endsWith('.pdf')) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -121,7 +121,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
           }
           _resumeFileName = file.name;
         });
-        
+
         // Show success message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -170,7 +170,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
           allowMultiple: false,
           withData: true,
         );
-        
+
         if (result != null && result.files.isNotEmpty) {
           setState(() {
             _webProfilePhoto = result.files.first.bytes;
@@ -316,10 +316,8 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
         if (_profilePhoto != null && profilePhotoUrl != null) {
           try {
             print('DEBUG: Updating profile photo URL with freelancer ID');
-            final newProfilePhotoUrl = await _fileUploadService.uploadProfilePhoto(
-              _profilePhoto!,
-              freelancer.id,
-            );
+            final newProfilePhotoUrl = await _fileUploadService
+                .uploadProfilePhoto(_profilePhoto!, freelancer.id);
 
             await Supabase.instance.client
                 .from('freelancers')
@@ -334,11 +332,11 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       }
 
       print('DEBUG: Freelancer added successfully');
-      
+
       // Use Future.delayed to ensure the UI has time to update before navigating
       if (mounted) {
         setState(() => _isLoading = false);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -352,7 +350,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
             ),
           ),
         );
-        
+
         // Use Future.delayed to ensure the SnackBar has time to appear before navigating
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
@@ -409,8 +407,8 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
           maxLines: isMultiline ? 3 : 1,
           keyboardType: keyboardType,
           style: GoogleFonts.poppins(
-            fontSize: ResponsiveHelper.getFontSize(context, 14), 
-            color: ThemeHelper.textPrimary
+            fontSize: ResponsiveHelper.getFontSize(context, 14),
+            color: ThemeHelper.textPrimary,
           ),
           decoration: InputDecoration(
             labelText: label,
@@ -421,11 +419,15 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
             prefixIcon: Icon(icon, color: ThemeHelper.purple),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide(color: ThemeHelper.purple.withOpacity(0.3)),
+              borderSide: BorderSide(
+                color: ThemeHelper.purple.withOpacity(0.3),
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(15),
-              borderSide: BorderSide(color: ThemeHelper.purple.withOpacity(0.3)),
+              borderSide: BorderSide(
+                color: ThemeHelper.purple.withOpacity(0.3),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(15),
@@ -453,43 +455,41 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.grey.shade200,
-                border: Border.all(
-                  color: ThemeHelper.purple,
-                  width: 2,
-                ),
+                border: Border.all(color: ThemeHelper.purple, width: 2),
                 boxShadow: ThemeHelper.coloredShadow(ThemeHelper.purple),
               ),
-              child: kIsWeb 
-                ? (_webProfilePhoto != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(60),
-                        child: Image.memory(
-                          _webProfilePhoto!,
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : Icon(
-                        Icons.add_a_photo,
-                        size: 40,
-                        color: ThemeHelper.purple,
-                      ))
-                : (_profilePhoto != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(60),
-                        child: Image.file(
-                          _profilePhoto!,
-                          width: 120,
-                          height: 120,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : Icon(
-                        Icons.add_a_photo,
-                        size: 40,
-                        color: ThemeHelper.purple,
-                      )),
+              child:
+                  kIsWeb
+                      ? (_webProfilePhoto != null
+                          ? ClipRRect(
+                            borderRadius: BorderRadius.circular(60),
+                            child: Image.memory(
+                              _webProfilePhoto!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                          : Icon(
+                            Icons.add_a_photo,
+                            size: 40,
+                            color: ThemeHelper.purple,
+                          ))
+                      : (_profilePhoto != null
+                          ? ClipRRect(
+                            borderRadius: BorderRadius.circular(60),
+                            child: Image.file(
+                              _profilePhoto!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                          : Icon(
+                            Icons.add_a_photo,
+                            size: 40,
+                            color: ThemeHelper.purple,
+                          )),
             ),
           ),
           const SizedBox(height: 8),
@@ -508,9 +508,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
   Widget _buildPersonalInfoCard() {
     return Card(
       elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       shadowColor: ThemeHelper.purple.withOpacity(0.3),
       child: Container(
         decoration: ThemeHelper.cardDecoration(),
@@ -603,13 +601,11 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       ),
     );
   }
-  
+
   Widget _buildProfessionalDetailsCard() {
     return Card(
       elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       shadowColor: ThemeHelper.cyan.withOpacity(0.3),
       child: Container(
         decoration: ThemeHelper.cardDecoration(),
@@ -626,11 +622,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: ThemeHelper.coloredShadow(ThemeHelper.cyan),
                   ),
-                  child: const Icon(
-                    Icons.work,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  child: const Icon(Icons.work, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -689,13 +681,11 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       ),
     );
   }
-  
+
   Widget _buildResumeCard() {
     return Card(
       elevation: 8,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       shadowColor: ThemeHelper.teal.withOpacity(0.3),
       child: Container(
         decoration: ThemeHelper.cardDecoration(),
@@ -738,16 +728,11 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
                 decoration: BoxDecoration(
                   color: ThemeHelper.teal.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(15),
-                  border: Border.all(
-                    color: ThemeHelper.teal.withOpacity(0.3),
-                  ),
+                  border: Border.all(color: ThemeHelper.teal.withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.upload_file,
-                      color: ThemeHelper.teal,
-                    ),
+                    Icon(Icons.upload_file, color: ThemeHelper.teal),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -774,7 +759,11 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, color: ThemeHelper.green, size: 20),
+                    Icon(
+                      Icons.check_circle,
+                      color: ThemeHelper.green,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -794,7 +783,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       ),
     );
   }
-  
+
   Widget _buildSubmitButton() {
     return SizedBox(
       height: 56,
@@ -810,30 +799,31 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
           shadowColor: ThemeHelper.purple.withOpacity(0.5),
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
-        child: _isLoading
-            ? SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.person_add, size: 24),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Add Freelancer',
-                    style: GoogleFonts.poppins(
-                      fontSize: ResponsiveHelper.getFontSize(context, 18),
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+        child:
+            _isLoading
+                ? SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
                   ),
-                ],
-              ),
+                )
+                : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person_add, size: 24),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Add Freelancer',
+                      style: GoogleFonts.poppins(
+                        fontSize: ResponsiveHelper.getFontSize(context, 18),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
       ),
     );
   }
@@ -864,7 +854,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
                 opacity: 0.04,
               ),
             ),
-            
+
             // Main content
             CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -935,7 +925,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       ),
     );
   }
-  
+
   Widget _buildMobileLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -951,7 +941,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       ],
     );
   }
-  
+
   Widget _buildTabletLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -972,7 +962,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
       ],
     );
   }
-  
+
   Widget _buildDesktopLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -980,10 +970,7 @@ class _AddFreelancerScreenState extends State<AddFreelancerScreen>
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              flex: 2,
-              child: _buildPersonalInfoCard(),
-            ),
+            Expanded(flex: 2, child: _buildPersonalInfoCard()),
             const SizedBox(width: 20),
             Expanded(
               flex: 1,
