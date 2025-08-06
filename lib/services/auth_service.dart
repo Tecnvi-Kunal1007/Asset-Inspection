@@ -44,13 +44,15 @@ class AuthService {
       }
 
       // Step 3: Insert into correct table only if not already inserted
-      final tableName = role == 'Contractor' ? 'contractor' : 'freelancer_employee';
+      final tableName =
+          role == 'Contractor' ? 'contractor' : 'freelancer_employee';
 
-      final existing = await _supabase
-          .from(tableName)
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
+      final existing =
+          await _supabase
+              .from(tableName)
+              .select()
+              .eq('id', userId)
+              .maybeSingle();
 
       if (existing == null) {
         await _supabase.from(tableName).insert({
@@ -92,19 +94,17 @@ class AuthService {
 
   // ✅ Determine user role
   Future<String?> getUserRole(String id) async {
-    final contractor = await _supabase
-        .from('contractor')
-        .select()
-        .eq('id', id)
-        .maybeSingle();
+    final contractor =
+        await _supabase.from('contractor').select().eq('id', id).maybeSingle();
 
     if (contractor != null) return 'Contractor';
 
-    final freelancer = await _supabase
-        .from('freelancer_employee')
-        .select()
-        .eq('id', id)
-        .maybeSingle();
+    final freelancer =
+        await _supabase
+            .from('freelancer_employee')
+            .select()
+            .eq('id', id)
+            .maybeSingle();
 
     if (freelancer != null) return 'Freelancer-Employee';
 
@@ -117,11 +117,12 @@ class AuthService {
       final user = _supabase.auth.currentUser;
       if (user == null) return null;
 
-      final data = await _supabase
-          .from('contractor')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
+      final data =
+          await _supabase
+              .from('contractor')
+              .select()
+              .eq('id', user.id)
+              .maybeSingle();
 
       return data;
     } catch (e) {
@@ -142,9 +143,7 @@ class AuthService {
   // ✅ Reset password
   Future<void> resetPassword(String newPassword) async {
     try {
-      await _supabase.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _supabase.auth.updateUser(UserAttributes(password: newPassword));
     } catch (e) {
       log("❌ Reset failed: $e");
       throw Exception('Password reset failed');

@@ -16,6 +16,26 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(fileName: ".env");
+  if (kIsWeb) {
+    print("Running on Web");
+
+    await Supabase.initialize(
+      url: 'https://crvztrqgmqfixzatlkgz.supabase.co',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNydnp0cnFnbXFmaXh6YXRsa2d6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzMjA0MzcsImV4cCI6MjA2Nzg5NjQzN30.9gT5CRf7UuS7MaOHEP41mvOjRdteF5FpC5e_GZelEss',
+    );
+  } else {
+    print("Running on Mobile");
+
+    // ✅ You must load dotenv before using it
+    // await dotenv.load(fileName: "assets/.env");
+
+    await Supabase.initialize(
+      url: 'https://crvztrqgmqfixzatlkgz.supabase.co',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNydnp0cnFnbXFmaXh6YXRsa2d6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIzMjA0MzcsImV4cCI6MjA2Nzg5NjQzN30.9gT5CRf7UuS7MaOHEP41mvOjRdteF5FpC5e_GZelEss',
+    );
+  }
 
   runApp(MyApp());
 }
