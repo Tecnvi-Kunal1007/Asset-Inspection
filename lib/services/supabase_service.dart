@@ -9,6 +9,7 @@ import '../models/section_product.dart';
 import '../models/subsection_product.dart';
 import '../models/section.dart';
 import '../models/subsection.dart';
+import '../models/assignment.dart';
 import 'dart:io';
 import 'package:uuid/uuid.dart';
 
@@ -124,15 +125,8 @@ class SupabaseService {
     return response as List<Map<String, dynamic>>;
   }
 
- 
   // Add these new methods for engine inspections
- 
 
- 
-
-
-
- 
   uploadBytes(String s, String fileName, Uint8List uint8list) {}
 
   // qr scanning for the dyanamic premise creation
@@ -527,4 +521,120 @@ class SupabaseService {
   }
 
   fetchProductsByPremise(String id) {}
+
+  // Assignment Operations
+  Future<bool> assignFreelancerToPremise({
+    required String premiseId,
+    required String freelancerId,
+    required String freelancerName,
+    required List<String> tasks,
+  }) async {
+    try {
+      // Get current assignments
+      final response =
+          await _supabase
+              .from('premises')
+              .select('assignments')
+              .eq('id', premiseId)
+              .single();
+
+      Map<String, dynamic> currentAssignments = Map<String, dynamic>.from(
+        response['assignments'] ?? {},
+      );
+
+      // Create new assignment
+      final assignment = {
+        'freelancer_id': freelancerId,
+        'freelancer_name': freelancerName,
+        'tasks': tasks,
+        'assigned_date': DateTime.now().toIso8601String(),
+      };
+
+      // Add assignment
+      currentAssignments[freelancerId] = assignment;
+
+      // Update premise
+      await _supabase
+          .from('premises')
+          .update({'assignments': currentAssignments})
+          .eq('id', premiseId);
+
+      return true;
+    } catch (e) {
+      print('Error assigning freelancer to premise: $e');
+      return false;
+    }
+  }
+
+  Future<bool> removeAssignment({
+    required String premiseId,
+    required String freelancerId,
+  }) async {
+    try {
+      // Get current assignments
+      final response =
+          await _supabase
+              .from('premises')
+              .select('assignments')
+              .eq('id', premiseId)
+              .single();
+
+      Map<String, dynamic> currentAssignments = Map<String, dynamic>.from(
+        response['assignments'] ?? {},
+      );
+
+      // Remove assignment
+      currentAssignments.remove(freelancerId);
+
+      // Update premise
+      await _supabase
+          .from('premises')
+          .update({'assignments': currentAssignments})
+          .eq('id', premiseId);
+
+      return true;
+    } catch (e) {
+      print('Error removing assignment: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getPremiseAssignments(String premiseId) async {
+    try {
+      final response =
+          await _supabase
+              .from('premises')
+              .select('id, name, assignments')
+              .eq('id', premiseId)
+              .single();
+
+      return {
+        'premise_id': response['id'],
+        'premise_name': response['name'],
+        'assignments': response['assignments'] ?? {},
+      };
+    } catch (e) {
+      print('Error getting premise assignments: $e');
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllAssignments() async {
+    try {
+      final response = await _supabase
+          .from('premises')
+          .select('id, name, assignments, contractor_id')
+          .neq('assignments', '{}')
+          .order('created_at', ascending: false);
+
+      return response.where((premise) {
+        final assignments =
+            premise['assignments'] as Map<String, dynamic>? ?? {};
+        return assignments.isNotEmpty;
+      }).toList();
+    } catch (e) {
+      print('Error getting all assignments: $e');
+      return [];
+    }
+  }
 }

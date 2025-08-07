@@ -10,6 +10,8 @@ import '../utils/theme_helper.dart';
 import 'create_section_screen.dart';
 import 'subsection_selection_screen.dart';
 import 'create_subsection_product_screen.dart';
+import 'premise_assignment_screen.dart';
+import 'assignment_overview_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -901,6 +903,41 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
                               premiseId: widget.premise.id,
                               premiseName: widget.premise.name,
                             ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildActionButton(
+                  context: context,
+                  title: 'Assign Tasks',
+                  subtitle: 'Assign freelancers/employees to this premise',
+                  icon: Icons.assignment_ind,
+                  color: ThemeHelper.orange,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => PremiseAssignmentScreen(
+                              premise: widget.premise,
+                            ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildActionButton(
+                  context: context,
+                  title: 'View All Assignments',
+                  subtitle: 'See assignment overview and manage tasks',
+                  icon: Icons.dashboard,
+                  color: ThemeHelper.purple,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AssignmentOverviewScreen(),
                       ),
                     );
                   },

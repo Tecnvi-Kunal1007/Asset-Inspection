@@ -4,6 +4,7 @@ import 'package:pump_management_system/screens/premises_screen.dart';
 import 'package:pump_management_system/screens/task_management_screen.dart';
 import 'package:pump_management_system/screens/view_freelancers_screen.dart';
 import 'package:pump_management_system/screens/work_reports_screen.dart';
+import 'assignment_overview_screen.dart';
 import '../widgets/floating_chat.dart';
 // import 'area_inspection_status_screen.dart'; // Screen doesn't exist
 import 'employee_management_screen.dart';
@@ -484,6 +485,19 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
             () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const TaskManagementScreen()),
+            ),
+      ),
+      DashboardItem(
+        title: 'Assignment Overview',
+        subtitle: 'Manage premise assignments',
+        icon: Icons.assignment_ind,
+        color: const Color(0xFF9C27B0),
+        onTap:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AssignmentOverviewScreen(),
+              ),
             ),
       ),
       DashboardItem(
