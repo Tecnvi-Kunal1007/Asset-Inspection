@@ -5,6 +5,8 @@ class Premise {
   final Map<String, dynamic> additionalData;
   final String contractorName;
   final String? qr_Url; // Added QR URL field
+  final List<dynamic>? sections; // Sections with subsections and products
+  final List<dynamic>? products; // Premise-level products
 
   Premise({
     required this.id,
@@ -13,6 +15,8 @@ class Premise {
     required this.additionalData,
     required this.contractorName,
     this.qr_Url, // Made optional since it might be null initially
+    this.sections,
+    this.products,
   });
 
   factory Premise.fromMap(Map<String, dynamic> map) {
@@ -21,7 +25,7 @@ class Premise {
     return Premise(
       id: map['id']?.toString() ?? '',
       contractorId: map['contractor_id']?.toString() ?? '',
-      name: data['name'] as String? ?? '',
+      name: map['name'] as String? ?? data['name'] as String? ?? '',
       additionalData: Map<String, dynamic>.from(data)..remove('name'),
       contractorName: map['contractor_name'] as String? ?? 'Unknown',
       qr_Url:
@@ -30,6 +34,8 @@ class Premise {
               : (map['qrUrl'] != null
                   ? map['qrUrl'] as String
                   : null), // Extract QR URL from map with improved null handling
+      sections: map['sections'] as List<dynamic>?,
+      products: map['products'] as List<dynamic>?,
     );
   }
 
@@ -41,6 +47,8 @@ class Premise {
       'data': {'name': name, ...additionalData},
       'contractor_name': contractorName,
       'qr_url': qr_Url,
+      'sections': sections,
+      'products': products,
     };
   }
 

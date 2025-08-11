@@ -251,19 +251,31 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Product Icon
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: accentOrange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.inventory,
-                        color: accentOrange,
-                        size: 24,
-                      ),
-                    ),
+                    // Product Icon or Photo
+                    product.photoUrl != null && product.photoUrl!.isNotEmpty
+                      ? Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            image: DecorationImage(
+                              image: NetworkImage(product.photoUrl!),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: accentOrange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.inventory,
+                            color: accentOrange,
+                            size: 24,
+                          ),
+                        ),
                     const SizedBox(width: 16),
 
                     // Product Info
@@ -601,18 +613,30 @@ class IndividualProductDetailsScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: accentOrange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.inventory,
-                          color: accentOrange,
-                          size: 32,
-                        ),
-                      ),
+                      product.photoUrl != null && product.photoUrl!.isNotEmpty
+                        ? Container(
+                            width: 70,
+                            height: 70,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              image: DecorationImage(
+                                image: NetworkImage(product.photoUrl!),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: accentOrange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              Icons.inventory,
+                              color: accentOrange,
+                              size: 32,
+                            ),
+                          ),
                       const SizedBox(width: 20),
                       Expanded(
                         child: Column(

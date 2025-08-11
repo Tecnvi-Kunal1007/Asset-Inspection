@@ -5,6 +5,47 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
+import '../models/section.dart';
+import '../models/subsection.dart';
+import '../models/subsection_product.dart';
+import '../models/section_product.dart';
+import '../models/premise_product.dart';
+import '../services/supabase_service.dart';
+
+// Helper method to fetch sections with their subsections and products
+Future<List<Map<String, dynamic>>> _fetchSectionsWithDetails(
+  List<Section> sections,
+  SupabaseService supabaseService,
+) async {
+  final List<Map<String, dynamic>> sectionsData = [];
+  
+  for (final section in sections) {
+    // Fetch section products
+    final sectionProducts = await supabaseService.getSectionProducts(section.id);
+    
+    // Fetch subsections
+    final subsections = await supabaseService.getSubsections(section.id);
+    final subsectionsData = <Map<String, dynamic>>[];
+    
+    for (final subsection in subsections) {
+      // Fetch subsection products
+      final subsectionProducts = await supabaseService.getSubsectionProducts(subsection.id);
+      
+      subsectionsData.add({
+        ...subsection.toJson(),
+        'products': subsectionProducts.map((product) => product.toJson()).toList(),
+      });
+    }
+    
+    sectionsData.add({
+      ...section.toJson(),
+      'products': sectionProducts.map((product) => product.toJson()).toList(),
+      'subsections': subsectionsData,
+    });
+  }
+  
+  return sectionsData;
+}
 
 Future<String> generateAndUploadQrImage(
   String premiseId, {
@@ -12,10 +53,27 @@ Future<String> generateAndUploadQrImage(
 }) async {
   try {
     print('Starting QR code generation for premise: $premiseId');
-    // Create a data object that includes both the ID and name
+    
+    // Initialize Supabase service
+    final supabaseService = SupabaseService();
+    
+    // Fetch all premise details
+    final premiseDetails = await supabaseService.getPremiseDetails(premiseId);
+    
+    // Fetch sections
+    final sections = await supabaseService.getSections(premiseId);
+    final sectionsData = await _fetchSectionsWithDetails(sections, supabaseService);
+    
+    // Fetch premise products
+    final premiseProducts = await supabaseService.getPremiseProduct(premiseId);
+    
+    // Create a comprehensive data object that includes all premise details
     final Map<String, dynamic> qrData = {
       'id': premiseId,
-      'name': premiseName ?? 'Unknown Premise',
+      'name': premiseName ?? premiseDetails['data']['name'] ?? 'Unknown Premise',
+      'data': premiseDetails['data'],
+      'sections': sectionsData,
+      'products': premiseProducts.map((product) => product.toJson()).toList(),
     };
 
     // Convert to JSON string for QR code

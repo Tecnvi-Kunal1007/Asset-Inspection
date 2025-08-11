@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pump_management_system/models/section.dart';
@@ -9,6 +10,8 @@ import '../utils/responsive_helper.dart';
 import '../utils/theme_helper.dart';
 import '../models/subsection_product.dart';
 import '../models/premise.dart';
+import 'package:image_picker/image_picker.dart';
+import '../services/file_upload_service.dart';
 // import 'PremiseDetailsScreen.dart';
 
 class SectionProductsScreen extends StatefulWidget {
@@ -17,6 +20,8 @@ class SectionProductsScreen extends StatefulWidget {
   final String? subsectionName;
   final String? sectionId;
   final Section section;
+  final bool isViewMode;
+  final SectionProduct? productToEdit;
 
   const SectionProductsScreen({
     super.key,
@@ -25,6 +30,8 @@ class SectionProductsScreen extends StatefulWidget {
     this.subsectionName,
     this.sectionId,
     required this.section,
+    this.isViewMode = false,
+    this.productToEdit,
   });
 
   @override
@@ -32,7 +39,387 @@ class SectionProductsScreen extends StatefulWidget {
 
 }
 
-class _SectionProductsScreenState extends State<SectionProductsScreen> {
+class ProductForm {  
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController locationController = TextEditingController();
+  final List<Map<String, TextEditingController>> keyValueControllers = [];
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+  final SupabaseService _supabaseService = SupabaseService();
+  final _supabase = Supabase.instance.client;
+  File? photoFile;
+  String? photoUrl;
+  
+  ProductForm() {
+    // Initialize with one empty key-value pair
+    addKeyValuePair();
+  }
+  
+  void addKeyValuePair() {
+    keyValueControllers.add({
+      'key': TextEditingController(),
+      'value': TextEditingController(),
+    });
+  }
+  
+  void removeKeyValuePair(int index) {
+    if (keyValueControllers.length > 1) {
+      final controllers = keyValueControllers.removeAt(index);
+      controllers['key']?.dispose();
+      controllers['value']?.dispose();
+    }
+  }
+  
+  void dispose() {
+    nameController.dispose();
+    locationController.dispose();
+    for (var controllers in keyValueControllers) {
+      controllers['key']?.dispose();
+      controllers['value']?.dispose();
+    }
+  }
+  
+  bool isValid() {
+    if (nameController.text.isEmpty) return false;
+    if (!RegExp(r'^[A-Z]').hasMatch(nameController.text)) return false;
+    
+    // Check if all filled key-value pairs are valid
+    for (var controllers in keyValueControllers) {
+      final keyText = controllers['key']?.text ?? '';
+      final valueText = controllers['value']?.text ?? '';
+      
+      if (keyText.isNotEmpty && valueText.isEmpty) return false;
+      if (keyText.isEmpty && valueText.isNotEmpty) return false;
+    }
+    
+    return true;
+  }
+  
+  Future<void> submitForm(String sectionId) async {
+    if (!isValid()) return;
+    
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+    
+    // Prepare details map
+    final Map<String, dynamic> details = {};
+    
+    // Add location if available
+    if (locationController.text.trim().isNotEmpty) {
+      details['location'] = locationController.text.trim();
+    }
+    
+    // Add other key-value pairs
+    for (var controllers in keyValueControllers) {
+      final keyText = controllers['key']?.text.trim() ?? '';
+      final valueText = controllers['value']?.text.trim() ?? '';
+      
+      if (keyText.isNotEmpty && valueText.isNotEmpty) {
+        details[keyText] = valueText;
+      }
+    }
+    
+    // Upload photo if available
+    String? uploadedPhotoUrl;
+    if (photoFile != null) {
+      final fileUploadService = FileUploadService();
+      final productId = const Uuid().v4();
+      uploadedPhotoUrl = await fileUploadService.uploadProductPhoto(
+        photoFile!,
+        'section',
+        productId,
+      );
+    }
+    
+    // Create the product
+    final product = SectionProduct.fromForm(
+      sectionId: sectionId,
+      name: nameController.text.trim(),
+      quantity: 1, // Default quantity
+      details: details,
+      photoUrl: uploadedPhotoUrl,
+    );
+    await _supabaseService.createSectionProduct(product);
+  }
+  
+  Future<void> pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null) {
+      photoFile = File(image.path);
+    }
+  }
+  
+  Widget buildForm(BuildContext context, {required int index, Function? onRemove, Function? onUpdate}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Form(
+        key: formKey,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Form Header
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Product ${index + 1}',
+                    style: GoogleFonts.roboto(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF1B365D),
+                    ),
+                  ),
+                  if (onRemove != null)
+                    IconButton(
+                      onPressed: () => onRemove(),
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      tooltip: 'Remove this product',
+                    ),
+                ],
+              ),
+              const Divider(height: 24),
+              
+              // Product Name
+              TextFormField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: 'Product Name*',
+                  labelStyle: GoogleFonts.roboto(color: Colors.grey.shade700),
+                  hintText: 'Enter product name',
+                  hintStyle: GoogleFonts.roboto(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.inventory, color: Color(0xFF1B365D)),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a product name';
+                  }
+                  if (!RegExp(r'^[A-Z]').hasMatch(value)) {
+                    return 'Name must start with a capital letter';
+                  }
+                  return null;
+                },
+                onChanged: (_) => onUpdate?.call(),
+              ),
+              const SizedBox(height: 16),
+              
+              // Location
+              TextFormField(
+                controller: locationController,
+                decoration: InputDecoration(
+                  labelText: 'Location',
+                  labelStyle: GoogleFonts.roboto(color: Colors.grey.shade700),
+                  hintText: 'Enter product location',
+                  hintStyle: GoogleFonts.roboto(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.location_on, color: Color(0xFF1B365D)),
+                ),
+              ),
+              
+              const SizedBox(height: 24),
+              
+              // Photo Upload Section
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Product Photo',
+                    style: GoogleFonts.roboto(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF2C3E50),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      // Photo Preview
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: photoFile != null
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.file(
+                                  photoFile!,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : photoUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      photoUrl!,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Center(
+                                          child: CircularProgressIndicator(
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                : null,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.photo_outlined,
+                                    size: 40,
+                                    color: Colors.grey.shade400,
+                                  ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Upload Button
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          await pickImage();
+                          onUpdate?.call();
+                        },
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text('Upload Photo'),
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xFF1B365D),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              
+              // Location
+              TextFormField(
+                controller: locationController,
+                decoration: InputDecoration(
+                  labelText: 'Location',
+                  labelStyle: GoogleFonts.roboto(color: Colors.grey.shade700),
+                  hintText: 'Enter location (optional)',
+                  hintStyle: GoogleFonts.roboto(color: Colors.grey.shade400),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  prefixIcon: const Icon(Icons.location_on, color: Color(0xFF1B365D)),
+                ),
+                onChanged: (_) => onUpdate?.call(),
+              ),
+              const SizedBox(height: 24),
+              
+              // Properties Section
+              Text(
+                'Properties',
+                style: GoogleFonts.roboto(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+              const SizedBox(height: 16),
+              
+              // Key-Value Pairs
+              Column(
+                children: List.generate(keyValueControllers.length, (i) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: keyValueControllers[i]['key'],
+                          decoration: InputDecoration(
+                            labelText: 'Property',
+                            hintText: 'e.g. Color',
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onChanged: (_) => onUpdate?.call(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: keyValueControllers[i]['value'],
+                          decoration: InputDecoration(
+                            labelText: 'Value',
+                            hintText: 'e.g. Blue',
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onChanged: (_) => onUpdate?.call(),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          i == keyValueControllers.length - 1 ? Icons.add_circle : Icons.remove_circle,
+                          color: i == keyValueControllers.length - 1 ? Colors.green : Colors.red,
+                        ),
+                        onPressed: () {
+                          if (i == keyValueControllers.length - 1) {
+                            addKeyValuePair();
+                          } else {
+                            removeKeyValuePair(i);
+                          }
+                          onUpdate?.call();
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionProductsScreenState extends State<SectionProductsScreen> with TickerProviderStateMixin {
   final _supabaseService = SupabaseService();
   final _supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
@@ -41,16 +428,24 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _numberOfProductsController = TextEditingController();
 
   // State variables
   bool _isLoading = true;
   bool _isCreating = false;
   bool _isSubmitting = false;
+  bool _isNumberInput = false;
+  bool _isEditing = false;
   List<SectionProduct> _products = [];
+  List<ProductForm> _productForms = [];
 
   String _searchQuery = '';
-  
+
   final List<Map<String, String>> _keyValuePairs = [{}];
+  
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   // Construction company color scheme
   static const Color primaryBlue = Color(0xFF1B365D);
@@ -64,7 +459,64 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
   void initState() {
     super.initState();
     _loadProducts();
-
+    
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
+    
+    if (widget.isViewMode) {
+      _isCreating = false;
+    } else if (widget.productToEdit != null) {
+      _isEditing = true;
+      _isCreating = true;
+      _initializeEditForm();
+    }
+    
+    if (_isCreating) {
+      _animationController.forward();
+    }
+  }
+  
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _nameController.dispose();
+    _locationController.dispose();
+    _searchController.dispose();
+    _numberOfProductsController.dispose();
+    for (var form in _productForms) {
+      form.dispose();
+    }
+    super.dispose();
+  }
+  
+  void _initializeEditForm() {
+    if (widget.productToEdit != null) {
+      final product = widget.productToEdit!;
+      _nameController.text = product.name;
+      if (product.details.containsKey('location')) {
+        _locationController.text = product.details['location'];
+      }
+      
+      // Initialize key-value pairs from product details
+      _keyValuePairs.clear();
+      product.details.forEach((key, value) {
+        if (key != 'location') {
+          _keyValuePairs.add({'key': key, 'value': value.toString()});
+        }
+      });
+      if (_keyValuePairs.isEmpty) {
+        _keyValuePairs.add({});
+      }
+    }
   }
 
 
@@ -355,7 +807,345 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
     );
   }
 
-  Widget _buildProductCard(Product product) {
+  Widget _buildCreateProductsForm() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_productForms.isEmpty) ...[  
+            SlideTransition(
+              position: _slideAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.white, Colors.grey.shade50],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: accentOrange.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.inventory_2, color: accentOrange, size: 40),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Create Multiple Products',
+                        style: GoogleFonts.roboto(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: darkGray,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'How many products would you like to create?',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.roboto(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      TextField(
+                        controller: _numberOfProductsController,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.roboto(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: darkGray,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Enter number',
+                          hintStyle: GoogleFonts.roboto(color: Colors.grey.shade400),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          final count = int.tryParse(_numberOfProductsController.text);
+                          if (count != null && count > 0 && count <= 10) {
+                            setState(() {
+                              _productForms = List.generate(count, (_) => ProductForm());
+                            });
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Please enter a valid number between 1 and 10'),
+                                backgroundColor: Colors.red.shade600,
+                              ),
+                            );
+                          }
+                        },
+                        icon: Icon(Icons.check_circle, color: Colors.white),
+                        label: Text(
+                          'Continue',
+                          style: GoogleFonts.roboto(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: accentOrange,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 8,
+                          shadowColor: accentOrange.withOpacity(0.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          // Product Forms
+          if (_productForms.isNotEmpty)
+            ...List.generate(_productForms.length, (index) {
+              return SlideTransition(
+                position: _slideAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: _productForms[index].buildForm(
+                    context,
+                    index: index,
+                    onRemove: _productForms.length > 1 ? () => _removeProductForm(index) : null,
+                    onUpdate: () => setState(() {}),
+                  ),
+                ),
+              );
+            }),
+
+          // Action Buttons
+          if (_productForms.isNotEmpty) ...[  
+            SlideTransition(
+              position: _slideAnimation,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Quick Actions',
+                        style: GoogleFonts.roboto(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: darkGray,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => setState(() => _productForms.add(ProductForm())),
+                              icon: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(Icons.add, size: 16, color: Colors.white),
+                              ),
+                              label: Text(
+                                'Add Form',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryBlue,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _submitAllForms,
+                              icon: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(Icons.save, size: 16, color: Colors.white),
+                              ),
+                              label: Text(
+                                'Save All',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: successGreen,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _isCreating = false;
+                                  _productForms.clear();
+                                  _animationController.reverse();
+                                });
+                              },
+                              icon: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Icon(Icons.close, size: 16, color: Colors.white),
+                              ),
+                              label: Text(
+                                'Cancel',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey.shade600,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  void _removeProductForm(int index) {
+    if (_productForms.length > 1) {
+      setState(() {
+        _productForms[index].dispose();
+        _productForms.removeAt(index);
+      });
+    } else {
+      setState(() {
+        _productForms.clear();
+        _isCreating = false;
+        _animationController.reverse();
+      });
+    }
+  }
+  
+  Future<void> _submitAllForms() async {
+    bool hasErrors = false;
+    for (var form in _productForms) {
+      if (!form.isValid()) {
+        hasErrors = true;
+        break;
+      }
+    }
+    
+    if (hasErrors) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please fix the errors in the forms'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
+      return;
+    }
+    
+    setState(() => _isSubmitting = true);
+    
+    try {
+      for (var form in _productForms) {
+        await form.submitForm(widget.section.id);
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('All products created successfully!'),
+          backgroundColor: successGreen,
+        ),
+      );
+      
+      setState(() {
+        _isCreating = false;
+        _productForms.clear();
+        _animationController.reverse();
+      });
+      
+      await _loadProducts();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating products: $e'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
+  }
+  
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+  
+  Widget _buildProductCard(SectionProduct product) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Card(
@@ -384,19 +1174,31 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Product Icon
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: accentOrange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.inventory,
-                        color: accentOrange,
-                        size: 24,
-                      ),
-                    ),
+                    // Product Icon or Photo
+                    product.photoUrl != null && product.photoUrl!.isNotEmpty
+                      ? Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            image: DecorationImage(
+                              image: NetworkImage(product.photoUrl!),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: accentOrange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.inventory,
+                            color: accentOrange,
+                            size: 24,
+                          ),
+                        ),
                     const SizedBox(width: 16),
 
                     // Product Info
@@ -415,7 +1217,7 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
                           const SizedBox(height: 4),
 
                           // Location if available
-                          if (product.data['location'] != null) ...[
+                          if (product.details['location'] != null) ...[
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
@@ -428,7 +1230,7 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
                                   Icon(Icons.location_on, size: 16, color: primaryBlue),
                                   const SizedBox(width: 4),
                                   Text(
-                                    product.data['location'].toString(),
+                                    product.details['location'].toString(),
                                     style: GoogleFonts.roboto(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
@@ -453,7 +1255,7 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
                 ),
 
                 // Additional product data
-                if (product.data.isNotEmpty) ...[
+                if (product.details.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -479,7 +1281,7 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        ...product.data.entries
+                        ...product.details.entries
                             .where((entry) => entry.key != 'location' && entry.key != 'name')
                             .map((entry) => Padding(
                           padding: const EdgeInsets.only(bottom: 4),
@@ -519,7 +1321,7 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
                     Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
                     const SizedBox(width: 4),
                     Text(
-                      'Added ${_formatDate(product.createdAt)}',
+                      'Added ${_formatDate(product.createdAt)}', // Using original _formatDate method
                       style: GoogleFonts.roboto(
                         fontSize: 12,
                         color: Colors.grey.shade500,
@@ -868,7 +1670,8 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
     );
   }
 
-  String _formatDate(DateTime date) {
+  // Using the existing _formatDate method defined earlier
+  String _formatDateRelative(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
 
@@ -904,47 +1707,47 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
 
             // Products List
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
-                ),
-              )
-                  : _filteredProducts.isEmpty
-                  ? _searchQuery.isNotEmpty
-                  ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No products found',
-                      style: GoogleFonts.roboto(
-                        fontSize: 18,
-                        color: Colors.grey.shade600,
+                child: _isLoading
+                    ? const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryBlue),
+                  ),
+                )
+                    : _filteredProducts.isEmpty
+                    ? _searchQuery.isNotEmpty
+                    ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No products found',
+                        style: GoogleFonts.roboto(
+                          fontSize: 18,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Try searching with different keywords',
-                      style: GoogleFonts.roboto(
-                        fontSize: 14,
-                        color: Colors.grey.shade500,
+                      Text(
+                        'Try searching with different keywords',
+                        style: GoogleFonts.roboto(
+                          fontSize: 14,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              )
-                  : _buildEmptyState()
-                  : RefreshIndicator(
-                onRefresh: _loadProducts,
-                color: accentOrange,
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  itemCount: _filteredProducts.length,
-                  itemBuilder: (context, index) => _buildProductCard(_filteredProducts[index] as Product),
-                ),
-              )
+                    ],
+                  ),
+                )
+                    : _buildEmptyState()
+                    : RefreshIndicator(
+                  onRefresh: _loadProducts,
+                  color: accentOrange,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    itemCount: _filteredProducts.length,
+                    itemBuilder: (context, index) => _buildProductCard(_filteredProducts[index]),
+                  ),
+                )
 
             ),
           ],
@@ -953,11 +1756,6 @@ class _SectionProductsScreenState extends State<SectionProductsScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _locationController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
+  // Removed duplicate dispose method
 }
+

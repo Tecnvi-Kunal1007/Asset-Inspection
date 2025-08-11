@@ -4,6 +4,7 @@ import 'package:pump_management_system/screens/premises_screen.dart';
 import 'package:pump_management_system/screens/task_management_screen.dart';
 import 'package:pump_management_system/screens/view_freelancers_screen.dart';
 import 'package:pump_management_system/screens/work_reports_screen.dart';
+import 'QrScannerScreen.dart';
 import 'assignment_overview_screen.dart';
 import '../widgets/floating_chat.dart';
 // import 'area_inspection_status_screen.dart'; // Screen doesn't exist
@@ -459,12 +460,57 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
         subtitle: 'Track and manage all premises',
         icon: Icons.business,
         color: const Color(0xFF667eea),
-        onTap:
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const CreatePremiseScreen()),
-            ),
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            builder: (_) {
+              return SafeArea(
+                child: Wrap(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.add_business),
+                      title: const Text('Create Premise'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CreatePremiseScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.qr_code_scanner),
+                      title: const Text('Scan Premise'),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final code = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => QrScannerScreen(onScan: (String scannedData) { onQrScanned(context, scannedData); },),
+                          ),
+                        );
+                        // if (code != null) {
+                        //   // Fetch details from your DB based on `code`
+                        //   // Then navigate to PremiseDetailsScreen
+                        //   Navigator.push(
+                        //     context,
+                        //     MaterialPageRoute(
+                        //       builder: (_) => PremiseDetailsScreen(premiseId: code),
+                        //     ),
+                        //   );
+                        // }
+                      },
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
+
       DashboardItem(
         title: 'Manage Employees',
         subtitle: 'Handle your workforce',

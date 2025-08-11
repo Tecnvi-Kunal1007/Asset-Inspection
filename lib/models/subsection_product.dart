@@ -5,6 +5,7 @@ class Product {
   final int quantity;
   final Map<String, dynamic> details; // Maps from 'data' in Supabase
   final DateTime createdAt;
+  final String? photoUrl;
 
   Product({
     required this.id,
@@ -13,6 +14,7 @@ class Product {
     required this.quantity,
     required this.details,
     required this.createdAt,
+    this.photoUrl,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,7 @@ class Product {
       quantity: json['quantity'] ?? 0,
       details: Map<String, dynamic>.from(json['data'] ?? {}),
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      photoUrl: json['photo_url'],
     );
   }
 
@@ -34,6 +37,7 @@ class Product {
       quantity: map['quantity'] ?? 0,
       details: Map<String, dynamic>.from(map['data'] ?? {}),
       createdAt: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
+      photoUrl: map['photo_url'],
     );
   }
 
@@ -48,6 +52,7 @@ class Product {
       'quantity': quantity,
       'data': details,
       'created_at': createdAt.toIso8601String(),
+      'photo_url': photoUrl,
     };
   }
 }

@@ -53,6 +53,7 @@ dependencies:
   mailer: ^6.1.0
   app_links: ^6.4.0
   flutter_linkify: ^6.0.0
+  flutter_image_compress: ^2.1.0
 
 
 
@@ -71,8 +72,8 @@ flutter_launcher_icons:
   web:
     generate: true
     image_path: "assets/images/logo.jpeg"
-    background_color: "#hexcode"
-    theme_color: "#hexcode"
+    background_color: "#1B365D"
+    theme_color: "#FF6B35"
   windows:
     generate: true
     image_path: "assets/images/logo.jpeg"

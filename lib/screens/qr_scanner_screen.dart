@@ -40,12 +40,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     try {
       // QR code was scanned successfully
       if (!mounted) return;
-      
+
       // Show a success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('QR code scanned successfully')),
       );
-      
+
       // Navigate back
       Navigator.of(context).pop();
 

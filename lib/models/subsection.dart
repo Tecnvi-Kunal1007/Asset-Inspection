@@ -4,31 +4,46 @@ class Subsection {
   final String id;
   final String sectionId;
   final String name;
-  final Map<String, dynamic>? additionalData;
-  final String contractorName;
+  final Map<String, dynamic>? data; // JSONB column for additional key-value pairs
 
   Subsection({
     required this.id,
     required this.sectionId,
     required this.name,
-    this.additionalData,
-    required this.contractorName,
+    this.data,
   });
 
-  factory Subsection.fromMap(Map<String, dynamic> map) {
-    final contractorMap = map['contractors'] as Map<String, dynamic>?;
-    final contractorName =
-        contractorMap != null
-            ? contractorMap['name'] as String? ?? 'Unknown'
-            : 'Unknown';
+  factory Subsection.fromJson(Map<String, dynamic> json) {
+    // Handle the case where data might be a String or a Map
+    Map<String, dynamic>? dataMap;
+
+    if (json['data'] == null) {
+      dataMap = null;
+    } else if (json['data'] is Map) {
+      dataMap = Map<String, dynamic>.from(json['data'] as Map);
+    } else if (json['data'] is String) {
+      // If data is a String, create a map with a default key
+      dataMap = {'value': json['data']};
+    } else {
+      // For any other type, use an empty map
+      dataMap = {};
+    }
 
     return Subsection(
-      id: map['id'] as String,
-      sectionId: map['section_id'] as String,
-      name: map['name'] as String,
-      additionalData:
-          map['data'] != null ? Map<String, dynamic>.from(map['data']) : null,
-      contractorName: contractorName,
+      id: json['id'] as String? ?? '',
+      sectionId: json['section_id'] as String? ?? '',
+      name: json['name'] as String? ?? '', // Separate name column
+      data: dataMap != null && dataMap.isNotEmpty ? dataMap : null, // Only key-value pairs
     );
+  }
+  
+  // Convert Subsection to Map for JSON serialization
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'section_id': sectionId,
+      'name': name,
+      'data': data ?? {},
+    };
   }
 }

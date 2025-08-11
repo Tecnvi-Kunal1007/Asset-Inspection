@@ -12,6 +12,7 @@ import '../models/subsection.dart';
 import '../models/assignment.dart';
 import 'dart:io';
 import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
 class SupabaseService {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -288,7 +289,7 @@ class SupabaseService {
     try {
       final response = await _supabase
           .from('premises')
-          .select('id, contractor_id, data, contractor(name)')
+          .select('id, contractor_id, data, qr_url, contractor(name)')
           .order('created_at', ascending: false);
       return response.map((map) {
         final contractor =
@@ -308,39 +309,6 @@ class SupabaseService {
     return response.map((data) => Section.fromJson(data)).toList();
   }
 
-  // Additional method to regenerate QR code if needed
-  Future<String> regenerateQrCode(String premiseId) async {
-    try {
-      // First, get the premise details to include the name in the QR code
-      final premiseResponse =
-          await _client
-              .from('premises')
-              .select('id, data')
-              .eq('id', premiseId)
-              .single();
-
-      final premiseData = premiseResponse['data'] as Map<String, dynamic>;
-      final premiseName = premiseData['name'] as String? ?? 'Unknown Premise';
-
-      // Generate QR code with premise name included
-      final qrUrl = await generateAndUploadQrImage(
-        premiseId,
-        premiseName: premiseName,
-      );
-
-      // Update the premise with the new QR URL
-      await _client
-          .from('premises')
-          .update({'qr_url': qrUrl})
-          .eq('id', premiseId);
-
-      return qrUrl;
-    } catch (e) {
-      print('Error in regenerateQrCode: $e');
-      throw Exception('Failed to regenerate QR code: $e');
-    }
-  }
-
   // Future<List<Section>> getSections(String premiseId) async {
   //   final response = await Supabase.instance.client
   //       .from('sections')
@@ -349,66 +317,135 @@ class SupabaseService {
   //   return response.map((data) => Section.fromJson(data)).toList();
   // }
 
-  Future<void> createSection(
-    String premiseId,
-    Map<String, dynamic> data,
-  ) async {
-    await Supabase.instance.client.from('sections').insert({
+  Future<void> createSection(String premiseId, Map<String, dynamic> data) async {
+    final name = data['name'] as String?;
+    final dataMap = data['data'] as Map<String, dynamic>? ?? {};
+
+    await Supabase.instance.client
+        .from('sections')
+        .insert({
       'premise_id': premiseId,
-      'name': data['name'],
-      'data': data,
+      'name': name,
+      'data': dataMap
     });
   }
 
-  Future<void> updateSection(
-    String sectionId,
-    Map<String, dynamic> data,
-  ) async {
-    await Supabase.instance.client
-        .from('sections')
-        .update({'data': data})
-        .eq('id', sectionId);
+  Future<dynamic> updateSection(String sectionId, Map<String, dynamic> data) async {
+    final name = data['name'] as String?;
+    final dataMap = data['data'] as Map<String, dynamic>? ?? {};
+
+    final updatePayload = {
+      'name': name,
+      'data': dataMap.isNotEmpty ? dataMap : null, // JSONB column for key-value pairs
+    };
+
+    print('updateSection: Updating section $sectionId with payload: $updatePayload');
+
+    try {
+      final response = await Supabase.instance.client
+          .from('sections')
+          .update(updatePayload)
+          .eq('id', sectionId)
+          .select()
+          .single();
+      print('updateSection: Response: $response');
+      return response;
+    } catch (e) {
+      print('updateSection: Error - $e');
+      throw e;
+    }
   }
+
 
   // Subsections
   Future<List<Subsection>> getSubsections(String sectionId) async {
     try {
       final response = await _supabase
           .from('subsections')
-          .select('id, section_id, name, data')
-          .eq('section_id', sectionId)
-          .order('created_at', ascending: false);
+          .select('id, section_id, name, data') // Include name column
+          .eq('section_id', sectionId);
 
-      return response.map((map) => Subsection.fromMap(map)).toList();
+      if (response == null || response.isEmpty) return [];
+
+      // Ensure we're working with a List<Map<String, dynamic>>
+      final List<Map<String, dynamic>> subsectionsList = List<Map<String, dynamic>>.from(response);
+
+      return subsectionsList.map((map) => Subsection.fromJson(map)).toList();
     } catch (e) {
-      throw Exception('Error fetching subsections: $e');
+      print('Error in getSubsections: $e');
+      throw Exception('Failed to get subsections: $e');
     }
   }
 
-  Future<Subsection> createSubsection(
-    String sectionId,
-    Map<String, dynamic> data,
-  ) async {
+
+  Future<void> createSubsection(String sectionId, Map<String, dynamic> data) async {
+    try {
+      final subsectionData = data['data'] as Map<String, dynamic>? ?? {};
+      final name = subsectionData['name'] as String? ?? '';
+      if (name.isEmpty) {
+        throw Exception('Subsection name is required');
+      }
+
+      // Create a copy of the data to avoid modifying the original
+      final Map<String, dynamic> dataToInsert = Map<String, dynamic>.from(subsectionData);
+
+      // Remove name from the data map since it's stored in a separate column
+      dataToInsert.remove('name');
+
+      await _supabase.from('subsections').insert({
+        'section_id': sectionId,
+        'name': name, // Store name in its own column
+        'data': dataToInsert.isNotEmpty ? dataToInsert : null, // Store other properties in data
+      });
+    } catch (e) {
+      print('Error creating subsection: $e');
+      if (e.toString().contains('duplicate key value violates unique constraint')) {
+        throw Exception('A subsection with this name already exists in the section.');
+      }
+      throw Exception('Failed to create subsection: $e');
+    }
+  }
+
+  Future<Subsection> updateSubsection(String subsectionId, Map<String, dynamic> data) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      final response =
-          await _supabase
-              .from('subsections')
-              .insert({
-                'section_id': sectionId,
-                'name': data['name'],
-                'data': data,
-              })
-              .select('id, section_id, name, data')
-              .single();
+      // Extract name from data
+      final String name = data['name'] as String? ?? '';
+      if (name.isEmpty) {
+        throw Exception('Subsection name is required');
+      }
 
-      return Subsection.fromMap(response);
+      // Create a copy of the data to avoid modifying the original
+      final Map<String, dynamic> dataToUpdate = Map<String, dynamic>.from(data);
+
+      // Remove name from the data map since it's stored in a separate column
+      dataToUpdate.remove('name');
+
+      final updatePayload = {
+        'name': name, // Store name in its own column
+        'data': dataToUpdate.isNotEmpty ? dataToUpdate : null, // Store other properties in data
+      };
+
+      print('updateSubsection: Updating subsection $subsectionId with payload: $updatePayload');
+
+      final response = await _supabase
+          .from('subsections')
+          .update(updatePayload)
+          .eq('id', subsectionId)
+          .select('id, section_id, name, data')
+          .single();
+
+      print('updateSubsection: Response: $response');
+      return Subsection.fromJson(response);
     } catch (e) {
-      throw Exception('Error creating subsection: $e');
+      print('updateSubsection: Error - $e');
+      throw Exception('Error updating subsection: $e');
     }
   }
+
+
 
   // Products
   Future<List<Product>> getProducts(String subsectionId) async {
@@ -424,6 +461,12 @@ class SupabaseService {
       throw Exception('Error fetching products: $e');
     }
   }
+  
+  // Alias for getProducts to match naming convention in QR generator
+  Future<List<Product>> getSubsectionProducts(String subsectionId) async {
+    return getProducts(subsectionId);
+  }
+
 
   Future<List<SectionProduct>> getSectionProducts(String sectionId) async {
     final response = await _supabase
@@ -441,49 +484,61 @@ class SupabaseService {
     }
   }
 
+
   Future<void> createSectionProduct(SectionProduct product) async {
     final response = await Supabase.instance.client
-        .from(
-          'section_products',
-        ) // Make sure this matches your Supabase table name
+        .from('section_products') // Make sure this matches your Supabase table name
         .insert({
-          'id':
-              product
-                  .id, // You can use `uuid` from Dart if you generate manually
-          'section_id': product.sectionId,
-          'name': product.name,
-          'quantity': product.quantity,
-          'data': product.details,
-          'created_at':
-              product.createdAt
-                  .toIso8601String(), // Optional, Supabase can auto-generate this
-        });
+      'id': product.id, // You can use `uuid` from Dart if you generate manually
+      'section_id': product.sectionId,
+      'name': product.name,
+      'quantity': product.quantity,
+      'data': product.details,
+      'created_at': product.createdAt.toIso8601String(), // Optional, Supabase can auto-generate this
+    });
 
     if (response != null && response.error != null) {
-      throw Exception(
-        'Failed to create section product: ${response.error!.message}',
-      );
+      throw Exception('Failed to create section product: ${response.error!.message}');
     }
   }
 
-  Future<Product> createProduct(
-    String subsectionId,
-    Map<String, dynamic> data,
-  ) async {
+  Future<dynamic> updateSectionProduct(String sectionId, Map<String, dynamic> data) async {
+    final name = data['name'] as String?;
+    final dataMap = data['data'] as Map<String, dynamic>? ?? {};
+
+    final updatePayload = {
+      'name': name,
+      'data': dataMap.isNotEmpty ? dataMap : null, // JSONB column for key-value pairs
+    };
+
+    print('updateSectionProduct: Updating section Product $sectionId with payload: $updatePayload');
+
+    try {
+      final response = await Supabase.instance.client
+          .from('SectionProduct')
+          .update(updatePayload)
+          .eq('id', sectionId)
+          .select()
+          .single();
+      print('updateSectionProduct: Response: $response');
+      return response;
+    } catch (e) {
+      print('updateSectionProduct: Error - $e');
+      throw e;
+    }
+  }
+
+
+  Future<Product> createProduct(String subsectionId, Map<String, dynamic> data) async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      final response =
-          await _supabase
-              .from('subsections_products')
-              .insert({
-                'subsection_id': subsectionId,
-                'name': data['name'],
-                'data': data,
-              })
-              .select('id, subsection_id, name, data, created_at')
-              .single();
+      final response = await _supabase.from('subsections_products').insert({
+        'subsection_id': subsectionId,
+        'name': data['name'],
+        'data': data,
+      }).select('id, subsection_id, name, data, created_at').single();
 
       return Product.fromMap(response);
     } catch (e) {
@@ -491,12 +546,27 @@ class SupabaseService {
     }
   }
 
+  Future<Product?> updateProduct(String productId, Map<String, dynamic> data) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final response = await _supabase.from('subsections_products').update({
+        'name': data['name'],
+        'data': data,
+      }).eq('id', productId).select('id, subsection_id, name, data, created_at').single();
+
+      return Product.fromMap(response);
+    } catch (e) {
+      print('Error updating product: $e');
+      return null;
+    }
+  }
+
+
   getProductsBySection(String id) {}
 
-  Future<void> createPremiseProduct(
-    String premiseId,
-    Map<String, dynamic> data,
-  ) async {
+  Future<void> createPremiseProduct(String premiseId, Map<String, dynamic> data) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
@@ -505,11 +575,11 @@ class SupabaseService {
       'premise_id': premiseId,
       'name': data['name'],
       'quantity': data['quantity'],
-      'details': data['details'], // JSON type: can contain any key-values
+      'details': data['details'],  // JSON type: can contain any key-values
     });
   }
-
-  Future<List<PremiseProduct>> getProductsByPremise(String premiseId) async {
+// get products by premise
+  Future<List<PremiseProduct>> getPremiseProduct(String premiseId) async {
     final response = await _supabase
         .from('premise_products')
         .select()
@@ -519,6 +589,25 @@ class SupabaseService {
     final data = response as List;
     return data.map((json) => PremiseProduct.fromJson(json)).toList();
   }
+
+  // update product
+  Future<Product?> updatePremiseProduct(String productId, Map<String, dynamic> data) async {
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final response = await _supabase.from('premise_products').update({
+        'name': data['name'],
+        'data': data,
+      }).eq('id', productId).select('id, premise_id, name, data, created_at').single();
+
+      return Product.fromMap(response);
+    } catch (e) {
+      print('Error updating product: $e');
+      return null;
+    }
+  }
+
 
   fetchProductsByPremise(String id) {}
 

@@ -14,10 +14,9 @@ import 'premise_assignment_screen.dart';
 import 'assignment_overview_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:path_provider/path_provider.dart';
+// Mobile scanner import removed as scanning functionality is available elsewhere
 import 'package:http/http.dart' as http;
-import 'dart:io';
+import 'package:share_plus/share_plus.dart';
 import '../services/supabase_service.dart';
 
 class PremiseDetailsScreen extends StatefulWidget {
@@ -42,9 +41,6 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
     with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-  MobileScannerController? controller;
-  String? scannedData;
-  bool _isGeneratingQr = false;
 
   @override
   void initState() {
@@ -57,97 +53,71 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _animationController.forward();
-    controller = MobileScannerController();
   }
 
   @override
   void dispose() {
     _animationController.dispose();
-    controller?.dispose();
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) {
-    final barcode = capture.barcodes.first;
-    if (barcode.rawValue != null) {
-      setState(() {
-        scannedData = barcode.rawValue;
-      });
-      controller?.stop();
-      _showScanResultDialog();
-    }
-  }
-
-  void _showScanResultDialog() {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Scan Result'),
-            content: Text(scannedData ?? 'No data scanned'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  controller?.start();
-                },
-                child: Text('Close'),
-              ),
-              if (scannedData != null)
-                TextButton(
-                  onPressed: () {
-                    // Add share logic here (e.g., using share_plus package)
-                    Navigator.pop(context);
-                    controller?.start();
-                  },
-                  child: Text('Share'),
-                ),
-            ],
-          ),
-    );
-  }
-
-  Future<void> _downloadQrCode(String qrUrl) async {
+  Future<void> _shareQrCode(String qrUrl, String shareType) async {
     try {
-      final directory = await getExternalStorageDirectory();
-      if (directory == null) throw Exception('Storage directory not found');
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Dialog(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 20),
+                  Text('Preparing QR code...', style: GoogleFonts.poppins()),
+                ],
+              ),
+            ),
+          );
+        },
+      );
 
-      // Use premise name in the filename for better identification
-      final sanitizedName = widget.premise.name
-          .replaceAll(RegExp(r'[^\w\s]+'), '')
-          .replaceAll(' ', '_');
-      final filePath =
-          '${directory.path}/${sanitizedName}_QR_${DateTime.now().millisecondsSinceEpoch}.png';
-
+      // Download the QR code image
       final response = await http.get(Uri.parse(qrUrl));
-      if (response.statusCode == 200) {
-        await File(filePath).writeAsBytes(response.bodyBytes);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'QR code for ${widget.premise.name} downloaded successfully',
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            action: SnackBarAction(
-              label: 'VIEW',
-              textColor: Colors.white,
-              onPressed: () {
-                // You could add file viewing functionality here if needed
-              },
-            ),
-          ),
-        );
-      } else {
+      if (response.statusCode != 200) {
         throw Exception('Failed to download QR code');
       }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // For web platform, we can't use path_provider, so we'll share the URL directly
+      final String shareText = 'QR Code for ${widget.premise.name}';
+      
+      if (shareType == 'whatsapp') {
+        // Share to WhatsApp
+        await Share.share(
+          'Check out the QR Code for ${widget.premise.name}: $qrUrl',
+          subject: 'QR Code for Premise',
+        );
+      } else if (shareType == 'email') {
+        // Share via email
+        await Share.share(
+          'Check out the QR Code for ${widget.premise.name}: $qrUrl',
+          subject: 'QR Code for Premise: ${widget.premise.name}',
+        );
+      }
     } catch (e) {
+      // Close loading dialog if it's still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error downloading QR code: $e'),
+          content: Text('Error sharing QR code: $e'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -157,75 +127,10 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
       );
     }
   }
-
-  Future<void> _generateQrCode() async {
-    final supabaseService = SupabaseService();
-
-    setState(() {
-      _isGeneratingQr = true;
-    });
-
-    try {
-      // Show a loading indicator
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Generating QR code...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-
-      // Call the regenerateQrCode method from SupabaseService
-      final qrUrl = await supabaseService.regenerateQrCode(widget.premise.id);
-
-      // Since we can't modify widget.premise directly, we'll refresh the screen
-      setState(() {
-        _isGeneratingQr = false;
-      });
-
-      // Force a rebuild of the screen to reflect the updated QR URL
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder:
-              (context) => PremiseDetailsScreen(
-                premise: widget.premise.copyWith(qrUrl: qrUrl),
-                section: widget.section,
-                subsection: widget.subsection,
-                product: widget.product,
-              ),
-        ),
-      );
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'QR code for ${widget.premise.name} generated successfully',
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    } catch (e) {
-      setState(() {
-        _isGeneratingQr = false;
-      });
-
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error generating QR code: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    }
+  
+  // Keeping this method for backward compatibility if needed
+  Future<void> _downloadQrCode(String qrUrl) async {
+    await _shareQrCode(qrUrl, 'email');
   }
 
   @override
@@ -273,64 +178,7 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
               const SizedBox(height: 20),
               _buildDetailsCard(),
               const SizedBox(height: 20),
-              // Scanner Section
-              if (widget.premise.qr_Url != null &&
-                  widget.premise.qr_Url!.isNotEmpty &&
-                  widget.premise.qr_Url != 'pending')
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Scan QR Code',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: ThemeHelper.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          height: 300,
-                          child: Stack(
-                            children: [
-                              MobileScanner(
-                                controller: controller,
-                                onDetect: _onDetect,
-                              ),
-                              // Custom overlay
-                              Container(
-                                color: Colors.black.withOpacity(0.5),
-                                child: Center(
-                                  child: ClipPath(
-                                    clipper: ScannerOverlayClipper(
-                                      borderColor: ThemeHelper.primaryBlue,
-                                      borderRadius: 10,
-                                      borderLength: 30,
-                                      borderWidth: 5,
-                                      cutoutSize: 250,
-                                    ),
-                                    child: Container(
-                                      height: 250,
-                                      width: 250,
-                                      color: Colors.transparent,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              // QR Scanner section removed as it's already available elsewhere
             ],
           ),
         ),
@@ -434,197 +282,151 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
                   ),
                 ),
                 // QR Code Section - Always show this section, but with different content based on QR availability
-                ...[
-                  if (widget.premise.qr_Url != null &&
-                      widget.premise.qr_Url!.isNotEmpty &&
-                      widget.premise.qr_Url != 'pending')
-                    Column(
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: ThemeHelper.primaryBlue.withOpacity(0.3),
-                              width: 2,
+                if (widget.premise.qr_Url != null &&
+                    widget.premise.qr_Url!.isNotEmpty &&
+                    widget.premise.qr_Url != 'pending')
+                  Column(
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: ThemeHelper.primaryBlue.withOpacity(0.3),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Stack(
+                            children: [
+                              Image.network(
+                                widget.premise.qr_Url!,
+                                fit: BoxFit.contain,
+                                loadingBuilder: (
+                                  context,
+                                  child,
+                                  loadingProgress,
+                                ) {
+                                  if (loadingProgress == null) return child;
+                                  return Center(
+                                    child: CircularProgressIndicator(
+                                      value:
+                                          loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                              : null,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(
+                                            ThemeHelper.primaryBlue,
+                                          ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  print('Error loading QR code: $error');
+                                  print('QR URL: ${widget.premise.qr_Url}');
+                                  return Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.qr_code_2,
+                                        size: 40,
+                                        color: Colors.grey,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'QR Error',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: ThemeHelper.primaryBlue,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.qr_code_scanner,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: Stack(
-                              children: [
-                                Image.network(
-                                  widget.premise.qr_Url!,
-                                  fit: BoxFit.contain,
-                                  loadingBuilder: (
-                                    context,
-                                    child,
-                                    loadingProgress,
-                                  ) {
-                                    if (loadingProgress == null) return child;
-                                    return Center(
-                                      child: CircularProgressIndicator(
-                                        value:
-                                            loadingProgress
-                                                        .expectedTotalBytes !=
-                                                    null
-                                                ? loadingProgress
-                                                        .cumulativeBytesLoaded /
-                                                    loadingProgress
-                                                        .expectedTotalBytes!
-                                                : null,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              ThemeHelper.primaryBlue,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    print('Error loading QR code: $error');
-                                    print('QR URL: ${widget.premise.qr_Url}');
-                                    return Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(
-                                          Icons.qr_code_2,
-                                          size: 40,
-                                          color: Colors.grey,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'QR Error',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: ThemeHelper.primaryBlue,
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(8),
-                                      ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.qr_code_scanner,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.download, size: 18),
-                          label: const Text('Download QR'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: ThemeHelper.primaryBlue,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                          ),
-                          onPressed:
-                              () => _downloadQrCode(widget.premise.qr_Url!),
-                        ),
-                      ],
-                    )
-                  else
-                    Column(
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.qr_code_2,
-                                  size: 40,
-                                  color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.share, size: 18),
+                              label: const Text('WhatsApp'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green.shade600,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'No QR Code',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  textAlign: TextAlign.center,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
                                 ),
-                              ],
+                              ),
+                              onPressed: () => _shareQrCode(widget.premise.qr_Url!, 'whatsapp'),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          icon:
-                              _isGeneratingQr
-                                  ? SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.black87,
-                                    ),
-                                  )
-                                  : const Icon(Icons.refresh, size: 18),
-                          label: Text(
-                            _isGeneratingQr ? 'Generating...' : 'Generate QR',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                _isGeneratingQr
-                                    ? Colors.grey.shade400
-                                    : Colors.grey.shade300,
-                            foregroundColor: Colors.black87,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.email, size: 18),
+                              label: const Text('Email'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ThemeHelper.primaryBlue,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onPressed: () => _shareQrCode(widget.premise.qr_Url!, 'email'),
                             ),
                           ),
-                          onPressed:
-                              _isGeneratingQr ? null : () => _generateQrCode(),
-                        ),
-                      ],
-                    ),
-                ],
+                        ],
+                      ),
+                    ],
+                  ),
               ],
             ),
             // QR Code Info Banner - Show if QR is available

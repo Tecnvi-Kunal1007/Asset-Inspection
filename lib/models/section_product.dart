@@ -7,6 +7,7 @@ class SectionProduct {
   final int quantity;
   final Map<String, dynamic> details;
   final DateTime createdAt;
+  final String? photoUrl;
 
   SectionProduct({
     required this.id,
@@ -15,6 +16,7 @@ class SectionProduct {
     required this.quantity,
     required this.details,
     required this.createdAt,
+    this.photoUrl,
   });
 
   factory SectionProduct.fromMap(Map<String, dynamic> map) {
@@ -25,6 +27,7 @@ class SectionProduct {
       quantity: map['quantity'] ?? 0,
       details: Map<String, dynamic>.from(map['data'] ?? {}),
       createdAt: DateTime.tryParse(map['created_at'] ?? '') ?? DateTime.now(),
+      photoUrl: map['photo_url'],
     );
   }
 
@@ -36,6 +39,7 @@ class SectionProduct {
       'quantity': quantity,
       'data': details,
       'created_at': createdAt.toIso8601String(),
+      'photo_url': photoUrl,
     };
   }
 
@@ -45,9 +49,11 @@ class SectionProduct {
     required String name,
     required int quantity,
     required Map<String, dynamic> details,
+    String? photoUrl,
   }) {
     return SectionProduct(
       id: const Uuid().v4(),
+      photoUrl: photoUrl,
       sectionId: sectionId,
       name: name,
       quantity: quantity,
