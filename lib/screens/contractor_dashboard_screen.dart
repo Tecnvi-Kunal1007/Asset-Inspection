@@ -7,8 +7,11 @@ import 'package:pump_management_system/screens/work_reports_screen.dart';
 import 'QrScannerScreen.dart';
 import 'assignment_overview_screen.dart';
 import '../widgets/floating_chat.dart';
+
 // import 'area_inspection_status_screen.dart'; // Screen doesn't exist
 import 'employee_management_screen.dart';
+import 'product_management_screen.dart';
+
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:math' as math;
 
@@ -216,6 +219,7 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
           pinned: true,
           backgroundColor: Colors.white,
           elevation: 0,
+          actions: [],
           flexibleSpace: FlexibleSpaceBar(
             background: Container(
               decoration: BoxDecoration(
@@ -567,6 +571,19 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
               context,
               MaterialPageRoute(
                 builder: (_) => const EmployeeManagementScreen(),
+              ),
+            ),
+      ),
+      DashboardItem(
+        title: 'Product Management',
+        subtitle: 'AI-powered inventory system',
+        icon: Icons.inventory_2_rounded,
+        color: const Color(0xFF9C27B0),
+        onTap:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProductManagementScreen(),
               ),
             ),
       ),
