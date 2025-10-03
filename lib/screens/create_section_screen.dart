@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:pump_management_system/screens/section_details_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/supabase_service.dart';
+import '../services/qr_generator.dart';
 import '../utils/responsive_helper.dart';
 import '../utils/theme_helper.dart';
 import '../models/section.dart';
@@ -304,7 +305,7 @@ class _CreateSectionScreenState extends State<CreateSectionScreen> with TickerPr
       for (var form in validForms) {
         final data = form.getData();
         print('createSections: Saving data: $data');
-        await _supabaseService.createSection(widget.premiseId, data);
+        await _supabaseService.createSectionWithQr(widget.premiseId, data);
       }
 
       Navigator.of(context).pop();

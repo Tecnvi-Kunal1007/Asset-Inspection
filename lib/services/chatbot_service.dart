@@ -1,16 +1,32 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ChatbotService {
-  final String _apiKey;
+  String? _apiKey;
   final String _baseUrl = 'https://api.openai.com/v1/chat/completions';
 
-  ChatbotService() : _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+  String get apiKey {
+    if (_apiKey == null) {
+      // For web builds, prioritize dart-define values over .env file
+      if (kIsWeb) {
+        _apiKey = const String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+        if (_apiKey!.isEmpty) {
+          _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+        }
+      } else {
+        _apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+      }
+    }
+    return _apiKey!;
+  }
+
+  ChatbotService();
 
   // Add a general chat method
   Future<String> getChatResponse(String message, String systemPrompt) async {
-    if (_apiKey.isEmpty) {
+    if (apiKey.isEmpty) {
       throw Exception('OpenAI API key not found. Please check your .env file.');
     }
 
@@ -19,7 +35,7 @@ class ChatbotService {
         Uri.parse(_baseUrl),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'Authorization': 'Bearer $apiKey',
         },
         body: jsonEncode({
           'model': 'gpt-3.5-turbo',
@@ -47,7 +63,7 @@ class ChatbotService {
 
   // Add a streaming chat response method
   Stream<String> streamChatResponse(String message, String systemPrompt) async* {
-    if (_apiKey.isEmpty) {
+    if (apiKey.isEmpty) {
       yield 'Error: OpenAI API key not found. Please check your .env file.';
       return;
     }
@@ -57,7 +73,7 @@ class ChatbotService {
 
       request.headers.addAll({
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $_apiKey',
+        'Authorization': 'Bearer $apiKey',
       });
 
       request.body = jsonEncode({

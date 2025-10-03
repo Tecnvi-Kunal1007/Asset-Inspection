@@ -80,10 +80,7 @@ class _SignUpPageState extends State<SignUpPage> with TickerProviderStateMixin {
     final password = passwordController.text;
     final confirmPassword = confirmPasswordController.text;
 
-    if (name.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty ||
-        confirmPassword.isEmpty) {
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       _showError("Please fill all fields!");
       setState(() => isLoading = false);
       return;
@@ -93,60 +90,29 @@ class _SignUpPageState extends State<SignUpPage> with TickerProviderStateMixin {
       setState(() => isLoading = false);
       return;
     }
-    if (selectedRole.isEmpty) {
-      _showError("Please select a role!");
+    if (!_roles.contains(selectedRole)) {
+      _showError("Please select a valid role!");
       setState(() => isLoading = false);
       return;
     }
 
     try {
-      final supabase = Supabase.instance.client;
-
-      // Check if email already exists in either role table
-      final contractorData =
-          await supabase
-              .from('contractor')
-              .select()
-              .eq('email', email)
-              .maybeSingle();
-      final freelancerData =
-          await supabase
-              .from('freelancer_employee')
-              .select()
-              .eq('email', email)
-              .maybeSingle();
-
-      log("hey");
-
-      if (contractorData != null || freelancerData != null) {
-        _showError("User already registered!");
-        setState(() => isLoading = false);
-        return;
-      }
-
-      // Send OTP
-      log("⏳ Sending OTP to $email");
       await _authService.sendRegistrationOTP(email);
-      log("✅ OTP sent successfully");
-
       if (!mounted) return;
 
-      // Navigate to verification page
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder:
-              (_) => OtpScreen(
-                role: selectedRole,
-                email: email,
-                name: name,
-                password: password,
-              ),
+          builder: (_) => OtpScreen(
+            role: selectedRole,
+            email: email,
+            name: name,
+            password: password,
+          ),
         ),
       );
     } catch (e) {
-      log("❌ Error sending verification email: $e");
-      _showError("Error sending verification email: $e");
+      _showError("Error sending OTP: $e");
     } finally {
       setState(() => isLoading = false);
     }

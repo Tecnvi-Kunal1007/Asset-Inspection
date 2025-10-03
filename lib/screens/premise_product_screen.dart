@@ -636,7 +636,7 @@ class _CreatePremiseProductScreenState
           contractorId: premiseData['contractor_id'] ?? '',
           name: premiseData['data']['name'] ?? widget.premiseName,
           additionalData: Map<String, dynamic>.from(premiseData['data'] ?? {})..remove('name'),
-          contractorName: premiseData['contractor_name'] ?? 'Unknown',
+          contractorName: premiseData['contractor_name'] ?? 'Unknown', createdAt: DateTime.parse(premiseData['created_at']),
         );
       }
 
@@ -853,7 +853,101 @@ class _CreatePremiseProductScreenState
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Key-value pairs will be added here
+                      Text(
+  'Additional Properties',
+  style: GoogleFonts.poppins(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: Colors.grey.shade800,
+  ),
+),
+const SizedBox(height: 16),
+..._keyValuePairs.asMap().entries.map((entry) {
+  int pairIndex = entry.key;
+  var pair = entry.value;
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: TextFormField(
+            initialValue: pair['key'] ?? '',
+            decoration: InputDecoration(
+              labelText: 'Property',
+              hintText: 'e.g., Material, Color',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            onChanged: (value) {
+              setState(() {
+                pair['key'] = value;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: TextFormField(
+            initialValue: pair['value'] ?? '',
+            decoration: InputDecoration(
+              labelText: 'Value',
+              hintText: 'e.g., Steel, Blue',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              filled: true,
+              fillColor: Colors.grey.shade50,
+            ),
+            onChanged: (value) {
+              setState(() {
+                pair['value'] = value;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: () {
+            setState(() {
+              if (_keyValuePairs.length > 1) {
+                _keyValuePairs.removeAt(pairIndex);
+              }
+            });
+          },
+          icon: Icon(
+            _keyValuePairs.length > 1 ? Icons.remove_circle : Icons.add_circle,
+            color: _keyValuePairs.length > 1 ? Colors.red.shade400 : primaryBlue,
+          ),
+        ),
+      ],
+    ),
+  );
+}).toList(),
+const SizedBox(height: 16),
+OutlinedButton.icon(
+  onPressed: () {
+    setState(() {
+      _keyValuePairs.add({});
+    });
+  },
+  icon: Icon(Icons.add, size: 18, color: primaryBlue),
+  label: Text(
+    'Add Property',
+    style: GoogleFonts.roboto(
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+      color: primaryBlue,
+    ),
+  ),
+  style: OutlinedButton.styleFrom(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    side: BorderSide(color: primaryBlue.withOpacity(0.5)),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  ),
+),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: () {
@@ -968,21 +1062,25 @@ class _CreatePremiseProductScreenState
         throw Exception('User not authenticated');
       }
 
+      // Prepare details object with additional properties
+      final detailsMap = <String, dynamic>{
+        'info': _detailsController.text.trim(),
+      };
+
+      // Add key-value pairs to details
+      for (var pair in _keyValuePairs) {
+        if (pair['key']?.isNotEmpty == true && pair['value']?.isNotEmpty == true) {
+          detailsMap[pair['key']!] = pair['value'];
+        }
+      }
+
       // Prepare product data
       final Map<String, dynamic> productData = {
         'name': _nameController.text.trim(),
         'quantity': int.parse(_quantityController.text.trim()),
-        'details': _detailsController.text.trim(),
+        'details': detailsMap,
         'updated_at': DateTime.now().toIso8601String(),
       };
-
-      // Add key-value pairs
-      // This section needs to be implemented based on how key-value pairs are stored
-      // For now, we'll use a simplified approach
-      Map<String, dynamic> details = {};
-      details['info'] = _detailsController.text.trim();
-      
-      productData['details'] = details;
 
       // Update product in Supabase
       await supabase
@@ -991,7 +1089,7 @@ class _CreatePremiseProductScreenState
           .eq('id', widget.productToEdit!.id);
 
       _showSnackBar('Product updated successfully!', isSuccess: true, isError: false);
-      Navigator.pop(context);
+      Navigator.pop(context, true); // Pass true to indicate refresh needed
     } catch (e) {
       _showSnackBar('Error updating product: ${e.toString()}');
     } finally {

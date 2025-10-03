@@ -7,6 +7,7 @@ class Premise {
   final String? qr_Url; // Added QR URL field
   final List<dynamic>? sections; // Sections with subsections and products
   final List<dynamic>? products; // Premise-level products
+  final DateTime createdAt; // Added to match Supabase schema
 
   Premise({
     required this.id,
@@ -17,25 +18,23 @@ class Premise {
     this.qr_Url, // Made optional since it might be null initially
     this.sections,
     this.products,
+    required this.createdAt,
   });
 
   factory Premise.fromMap(Map<String, dynamic> map) {
     final data = map['data'] as Map<String, dynamic>? ?? {};
-
     return Premise(
       id: map['id']?.toString() ?? '',
       contractorId: map['contractor_id']?.toString() ?? '',
       name: map['name'] as String? ?? data['name'] as String? ?? '',
       additionalData: Map<String, dynamic>.from(data)..remove('name'),
-      contractorName: map['contractor_name'] as String? ?? 'Unknown',
-      qr_Url:
-          map['qr_url'] != null
-              ? map['qr_url'] as String
-              : (map['qrUrl'] != null
-                  ? map['qrUrl'] as String
-                  : null), // Extract QR URL from map with improved null handling
+      contractorName: map['contractor_name'] as String? ?? map['contractor']?['name'] as String? ?? 'Unknown',
+      qr_Url: map['qr_url'] != null
+          ? map['qr_url'] as String
+          : (map['qrUrl'] != null ? map['qrUrl'] as String : null), // Extract QR URL with improved null handling
       sections: map['sections'] as List<dynamic>?,
       products: map['products'] as List<dynamic>?,
+      createdAt: DateTime.parse(map['created_at'] as String), // Parse created_at timestamp
     );
   }
 
@@ -49,6 +48,7 @@ class Premise {
       'qr_url': qr_Url,
       'sections': sections,
       'products': products,
+      'created_at': createdAt.toIso8601String(), // Include created_at for updates
     };
   }
 
@@ -60,6 +60,7 @@ class Premise {
     Map<String, dynamic>? additionalData,
     String? contractorName,
     String? qrUrl,
+    DateTime? createdAt,
   }) {
     return Premise(
       id: id ?? this.id,
@@ -68,6 +69,9 @@ class Premise {
       additionalData: additionalData ?? this.additionalData,
       contractorName: contractorName ?? this.contractorName,
       qr_Url: qrUrl ?? this.qr_Url,
+      sections: sections,
+      products: products,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -77,12 +81,12 @@ class Premise {
   // Check if premise has a valid QR code
   bool get hasQrCode =>
       qr_Url != null &&
-      qr_Url!.isNotEmpty &&
-      Uri.tryParse(qr_Url!)?.hasScheme == true;
+          qr_Url!.isNotEmpty &&
+          Uri.tryParse(qr_Url!)?.hasScheme == true;
 
   @override
   String toString() {
-    return 'Premises{id: $id, name: $name, contractorName: $contractorName, hasQr-Code: $hasQrCode}';
+    return 'Premises{id: $id, name: $name, contractorName: $contractorName, location: $location, hasQrCode: $hasQrCode, createdAt: $createdAt}';
   }
 
   @override

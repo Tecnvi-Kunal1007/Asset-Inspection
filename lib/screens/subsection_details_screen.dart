@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:http/http.dart' as http;
 import '../models/premise.dart';
 import '../models/premise.dart';
 import '../models/section.dart';
@@ -317,6 +319,67 @@ class _SubsectionDetailsScreenState extends State<SubsectionDetailsScreen> with 
             children: [
               _buildOverviewCard(),
               SizedBox(height: ResponsiveHelper.getSpacing(context, 20)),
+              // QR Code Info Banner - Add this after the overview card
+              if (widget.subsection.qrUrl != null &&
+                  widget.subsection.qrUrl!.isNotEmpty &&
+                  widget.subsection.qrUrl != 'pending') ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.shade200),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.qr_code_scanner,
+                          color: Colors.orange.shade700,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'QR Code Available',
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'This subsection has a QR code that includes its name and ID. Scan it for quick access or download it for offline use.',
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: ResponsiveHelper.getSpacing(context, 20)),
+              ],
               SizedBox(height: ResponsiveHelper.getSpacing(context, 20)),
               _buildManagementSection(),
               SizedBox(height: ResponsiveHelper.getSpacing(context, 20)),
@@ -416,6 +479,106 @@ class _SubsectionDetailsScreenState extends State<SubsectionDetailsScreen> with 
                 ),
               ],
             ),
+            // QR Code Section - Add this after the existing content
+            if (widget.subsection.qrUrl != null &&
+                widget.subsection.qrUrl!.isNotEmpty &&
+                widget.subsection.qrUrl != 'pending')
+              Column(
+                children: [
+                  const SizedBox(height: 16),
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        widget.subsection.qrUrl!,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                ThemeHelper.primaryBlue,
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          print('Error loading QR code: $error');
+                          print('QR URL: ${widget.subsection.qrUrl}');
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.qr_code_2,
+                                size: 40,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'QR Error',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.share, size: 16),
+                        label: const Text('Share'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        onPressed: () => _shareQrCode(widget.subsection.qrUrl!, 'whatsapp'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.email, size: 16),
+                        label: const Text('Email'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                          side: const BorderSide(color: Colors.orange),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
+                        onPressed: () => _shareQrCode(widget.subsection.qrUrl!, 'email'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
           ],
         ),
       ),
@@ -563,5 +726,76 @@ class _SubsectionDetailsScreenState extends State<SubsectionDetailsScreen> with 
       ),
     );
   }
+
+
+
+// Add this method at the end of the class, before the closing brace
+// Add this method INSIDE the _SubsectionDetailsScreenState class, 
+// before the final closing brace of the class
+
+Future<void> _shareQrCode(String qrUrl, String shareType) async {
+  try {
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(width: 20),
+                Text('Preparing QR code...', style: GoogleFonts.poppins()),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Download the QR code image
+    final response = await http.get(Uri.parse(qrUrl));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to download QR code');
+    }
+
+    // Close loading dialog
+    Navigator.of(context).pop();
+
+    // Share the QR code
+    final String shareText = 'QR Code for ${widget.subsection.name}';
+
+    if (shareType == 'whatsapp') {
+      await Share.share(
+        'Check out the QR Code for ${widget.subsection.name}: $qrUrl',
+        subject: 'QR Code for Subsection',
+      );
+    } else if (shareType == 'email') {
+      await Share.share(
+        'Check out the QR Code for ${widget.subsection.name}: $qrUrl',
+        subject: 'QR Code for Subsection: ${widget.subsection.name}',
+      );
+    }
+  } catch (e) {
+    // Close loading dialog if it's still open
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error sharing QR code: $e'),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+}
 
 }

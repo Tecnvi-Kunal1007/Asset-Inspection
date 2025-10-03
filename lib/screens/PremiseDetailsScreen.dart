@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:pump_management_system/screens/premise_product_screen.dart';
+import 'package:pump_management_system/screens/premise_summary_screen.dart';
+import 'premise_product_screen.dart';
 import '../models/premise.dart';
 import '../models/subsection_product.dart';
 import '../models/section.dart';
@@ -12,6 +13,7 @@ import 'subsection_selection_screen.dart';
 import 'create_subsection_product_screen.dart';
 import 'premise_assignment_screen.dart';
 import 'assignment_overview_screen.dart';
+import 'premise_report_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 // Mobile scanner import removed as scanning functionality is available elsewhere
@@ -132,6 +134,9 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
   Future<void> _downloadQrCode(String qrUrl) async {
     await _shareQrCode(qrUrl, 'email');
   }
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -637,6 +642,8 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
     );
   }
 
+
+
   Widget _buildHierarchyArrow() {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -744,6 +751,46 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
                     );
                   },
                 ),
+                const SizedBox(height: 16),
+                _buildActionButton(
+                  context: context,
+                  title: 'Generate Report',
+                  subtitle: 'Create and download premise inspection report',
+                  icon: Icons.description,
+                  color: Colors.teal,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PremiseReportScreen(
+                          premiseId: widget.premise.id,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height :16),
+
+                _buildActionButton(
+                  context: context,
+                  title: 'Generate AI Summary',
+                  subtitle: 'Get AI-powered analysis and summary report',
+                  icon: Icons.auto_awesome,
+                  color: Colors.indigo,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PremiseSummaryScreen(
+                          premiseId: widget.premise.id, // Pass the premise ID to fetch full data
+                          premiseName: widget.premise.name,
+                          reportText: null, // We'll fetch full data instead
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
               ],
             ),
           ),
@@ -751,6 +798,8 @@ class _PremiseDetailsScreenState extends State<PremiseDetailsScreen>
       ],
     );
   }
+
+
 
   Widget _buildActionButton({
     required BuildContext context,

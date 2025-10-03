@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pump_management_system/models/subsection_product.dart';
 import 'package:pump_management_system/screens/premise_product_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/premise.dart';
-import '../models/subsection_product.dart';
+import '../models/premise_product.dart'; // Use PremiseProduct instead of Product
 
 class ProductDetailsScreen extends StatefulWidget {
   final Premise premise;
@@ -19,7 +20,7 @@ class ProductDetailsScreen extends StatefulWidget {
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   final SupabaseClient _supabase = Supabase.instance.client;
-  List<Product> _products = [];
+  List<PremiseProduct> _products = []; // Changed to PremiseProduct
   bool _isLoading = true;
   String _searchQuery = '';
 
@@ -47,14 +48,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           .eq('premise_id', widget.premise.id)
           .order('created_at', ascending: false);
 
-      final products = response.map<Product>((data) => Product(
-        id: data['id'],
-        premiseId: data['premise_id'],
-        name: data['name'],
-        quantity: data['quantity'] ?? 1,
-        details: data['details'] ?? {},
-        createdAt: DateTime.parse(data['created_at']),
-      )).toList();
+      final products = response.map<PremiseProduct>((data) => PremiseProduct.fromJson(data)).toList();
 
       setState(() {
         _products = products;
@@ -73,7 +67,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     }
   }
 
-  List<Product> get _filteredProducts {
+  List<PremiseProduct> get _filteredProducts {
     if (_searchQuery.isEmpty) return _products;
     return _products.where((product) =>
         product.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
@@ -223,7 +217,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildProductCard(Product product) {
+  Widget _buildProductCard(PremiseProduct product) {
     final detailsText = product.details['info']?.toString() ?? '';
 
     return Container(
@@ -253,29 +247,29 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   children: [
                     // Product Icon or Photo
                     product.photoUrl != null && product.photoUrl!.isNotEmpty
-                      ? Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            image: DecorationImage(
-                              image: NetworkImage(product.photoUrl!),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        )
-                      : Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: accentOrange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.inventory,
-                            color: accentOrange,
-                            size: 24,
-                          ),
+                        ? Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        image: DecorationImage(
+                          image: NetworkImage(product.photoUrl!),
+                          fit: BoxFit.cover,
                         ),
+                      ),
+                    )
+                        : Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: accentOrange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.inventory,
+                        color: accentOrange,
+                        size: 24,
+                      ),
+                    ),
                     const SizedBox(width: 16),
 
                     // Product Info
@@ -471,7 +465,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     ).then((_) => _loadProducts()); // Refresh products when returning
   }
 
-  void _navigateToProductDetails(Product product) {
+  void _navigateToProductDetails(PremiseProduct product) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -480,7 +474,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           premise: widget.premise,
         ),
       ),
-    );
+    ).then((_) => _loadProducts()); // Refresh products when returning from edit
   }
 
   @override
@@ -539,9 +533,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 }
 
-// Individual Product Details Screen
+// Updated Individual Product Details Screen
 class IndividualProductDetailsScreen extends StatelessWidget {
-  final Product product;
+  final PremiseProduct product; // Changed to PremiseProduct
   final Premise premise;
 
   // Construction company color scheme
@@ -575,20 +569,31 @@ class IndividualProductDetailsScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Colors.white),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Edit feature coming soon!'),
-                  backgroundColor: accentOrange,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              // Navigate to edit screen
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CreatePremiseProductScreen(
+                    premiseId: premise.id,
+                    premiseName: premise.name,
+                    premise: premise,
+                    isViewMode: false,
+                    productToEdit: product,
+                  ),
                 ),
-              );
+              ).then((result) {
+                // Close this screen and go back to the product list
+                if (result == true) {
+                  Navigator.pop(context, true); // Pass true to indicate refresh needed
+                }
+              });
             },
+            tooltip: 'Edit Product',
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,29 +619,29 @@ class IndividualProductDetailsScreen extends StatelessWidget {
                   Row(
                     children: [
                       product.photoUrl != null && product.photoUrl!.isNotEmpty
-                        ? Container(
-                            width: 70,
-                            height: 70,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(16),
-                              image: DecorationImage(
-                                image: NetworkImage(product.photoUrl!),
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: accentOrange.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Icon(
-                              Icons.inventory,
-                              color: accentOrange,
-                              size: 32,
-                            ),
+                          ? Container(
+                        width: 70,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          image: DecorationImage(
+                            image: NetworkImage(product.photoUrl!),
+                            fit: BoxFit.cover,
                           ),
+                        ),
+                      )
+                          : Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: accentOrange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.inventory,
+                          color: accentOrange,
+                          size: 32,
+                        ),
+                      ),
                       const SizedBox(width: 20),
                       Expanded(
                         child: Column(
@@ -725,6 +730,64 @@ class IndividualProductDetailsScreen extends StatelessWidget {
                     ),
                   ],
 
+                  // Additional Properties
+                  if (product.details.length > 1) ...[
+                    const SizedBox(height: 24),
+                    Text(
+                      'Additional Properties',
+                      style: GoogleFonts.roboto(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: darkGray,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (var entry in product.details.entries)
+                            if (entry.key != 'info')
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SizedBox(
+                                      width: 100,
+                                      child: Text(
+                                        '${entry.key}:',
+                                        style: GoogleFonts.roboto(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                          color: darkGray,
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        entry.value.toString(),
+                                        style: GoogleFonts.roboto(
+                                          fontSize: 14,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 24),
 
                   // Created Date
@@ -742,6 +805,50 @@ class IndividualProductDetailsScreen extends StatelessWidget {
                     ],
                   ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Edit Button (Bottom)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CreatePremiseProductScreen(
+                        premiseId: premise.id,
+                        premiseName: premise.name,
+                        premise: premise,
+                        isViewMode: false,
+                        productToEdit: product,
+                      ),
+                    ),
+                  ).then((result) {
+                    if (result == true) {
+                      Navigator.pop(context, true);
+                    }
+                  });
+                },
+                icon: const Icon(Icons.edit, size: 20),
+                label: Text(
+                  'Edit Product',
+                  style: GoogleFonts.roboto(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accentOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 4,
+                ),
               ),
             ),
           ],

@@ -7,6 +7,7 @@ import '../models/subsection.dart';
 import '../utils/responsive_helper.dart';
 import '../utils/theme_helper.dart';
 import '../services/supabase_service.dart';
+import '../services/qr_generator.dart';
 import 'subsection_details_screen.dart';
 
 class SubsectionForm {
@@ -309,7 +310,7 @@ class _CreateSubsectionScreenState extends State<CreateSubsectionScreen> with Ti
       for (var form in validForms) {
         final data = form.getData();
         print('createSubsections: Saving data: $data');
-        await _supabaseService.createSubsection(widget.sectionId, data);
+        await _supabaseService.createSubsectionWithQr(widget.sectionId, data);
       }
 
       Navigator.of(context).pop();

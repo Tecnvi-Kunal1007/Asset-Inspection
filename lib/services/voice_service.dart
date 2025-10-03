@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_sound/flutter_sound.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class VoiceService {
@@ -38,8 +39,15 @@ class VoiceService {
   
   Future<bool> initialize() async {
     try {
-      // Load API key from environment
-      _openAIKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+      // Load API key from environment - prioritize dart-define for web builds
+      if (kIsWeb) {
+        _openAIKey = const String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+        if (_openAIKey.isEmpty) {
+          _openAIKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+        }
+      } else {
+        _openAIKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+      }
       
       if (_openAIKey.isEmpty) {
         debugPrint('OpenAI API key not found in .env file');

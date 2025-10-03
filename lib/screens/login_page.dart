@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:pump_management_system/screens/signup_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/contractor_dashboard_screen.dart';
 import '../screens/site_manager_dashboard.dart';
 import '../services/auth_service.dart';
 import 'forgot_password_page.dart';
-import 'package:lottie/lottie.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:developer' as dev;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -49,6 +50,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     );
 
     _animationController.forward();
+    _checkSession();
+    _listenAuthChanges();
   }
 
   @override
@@ -57,6 +60,88 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     emailController.dispose();
     passwordController.dispose();
     super.dispose();
+  }
+
+  void _checkSession() {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      _navigateToDashboard(session.user.id);
+    }
+  }
+
+  Future<void> _navigateToDashboard(String userId) async {
+    final role = await _authService.getUserRole(userId);
+    if (!mounted) return;
+
+    if (role == 'Contractor') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ContractorDashboardScreen(),
+        ),
+      );
+    } else if (role == 'Freelancer-Employee') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const SiteManagerDashboard(),
+        ),
+      );
+    } else {
+      _showError('Unknown user role. Please contact admin.');
+    }
+  }
+
+  void _listenAuthChanges() {
+    _authService.authStateChanges.listen((data) async {
+      final event = data.event;
+      final session = data.session;
+
+      if (event == AuthChangeEvent.signedIn && session != null && mounted) {
+        final userId = session.user.id;
+        dev.log('🔍 Auth state changed: User signed in - $userId');
+
+        // Check if user has a role assigned
+        final hasRole = await _authService.userHasRole(userId);
+
+        if (hasRole) {
+          // User already has a role, navigate to dashboard
+          dev.log('✅ User has existing role, navigating to dashboard');
+          _navigateToDashboard(userId);
+        } else {
+          // New user without role, prompt for role selection
+          dev.log('🆕 New user signed in, prompting for role selection');
+          final selectedRole = await _showRoleSelectionDialog();
+
+          if (selectedRole != null && mounted) {
+            try {
+              setState(() {
+                isLoading = true;
+              });
+
+              // Create user record with selected role
+              await _authService.completeGoogleSignIn(selectedRole);
+
+              // Navigate to appropriate dashboard
+              _navigateToDashboard(userId);
+            } catch (e) {
+              _showError('Error completing sign-in: $e');
+              await _authService.logout();
+            } finally {
+              if (mounted) {
+                setState(() {
+                  isLoading = false;
+                });
+              }
+            }
+          } else if (mounted) {
+            // User canceled role selection
+            await _authService.logout();
+            _showError('Role selection canceled. Please try again.');
+          }
+        }
+      }
+    });
   }
 
   void togglePasswordVisibility() {
@@ -90,25 +175,34 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       );
 
       if (response.user != null) {
-        final role = await _authService.getUserRole(response.user!.id);
+        final userId = response.user!.id;
+        final role = await _authService.getUserRole(userId);
         if (!mounted) return;
 
-        print('🔍 Logged-in user role: $role');
+        dev.log('🔍 Logged-in user role: $role');
 
-        if (role == 'Contractor') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const ContractorDashboardScreen(),
-            ),
-          );
-        } else if (role == 'Freelancer-Employee') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const SiteManagerDashboard()),
-          );
+        if (role == null) {
+          // New user, prompt for role selection
+          final selectedRole = await _showRoleSelectionDialog();
+          if (selectedRole != null && mounted) {
+            try {
+              await _authService.createUserRecord(
+                userId: userId,
+                email: email,
+                role: selectedRole,
+                loginProvider: 'email',
+              );
+              _navigateToDashboard(userId);
+            } catch (e) {
+              _showError('Error creating user record: $e');
+            }
+          } else {
+            await _authService.logout();
+            _showError('Role selection canceled. Please try again.');
+          }
         } else {
-          _showError('Unknown user role. Please contact admin.');
+          // Existing user, redirect based on role
+          _navigateToDashboard(userId);
         }
       } else {
         _showError('Login failed. User not found.');
@@ -117,9 +211,48 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       _showError('Login failed: ${e.toString()}');
     }
 
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
     setState(() {
-      isLoading = false;
+      isLoading = true;
     });
+
+    try {
+      dev.log('🔄 Starting Google Sign-In...');
+
+      // Start Google OAuth sign-in process
+      final success = await _authService.signInWithGoogle();
+
+      if (!success) {
+        throw Exception('Google Sign-In initiation failed');
+      }
+
+      dev.log('✅ Google Sign-In initiated successfully');
+      // The auth state listener will handle the rest when sign-in completes
+
+    } on AuthException catch (e) {
+      if (e.message.contains('cancelled') && mounted) {
+        _showError('Google Sign-In was canceled.');
+      } else if (mounted) {
+        _showError('Google Sign-In error: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showError('Unexpected error: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   void _showError(String message) {
@@ -147,10 +280,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isTablet = screenWidth > 600 && screenWidth <= 900;
-    final isDesktop = screenWidth > 900;
+    final screenWidth = MediaQuery
+        .of(context)
+        .size
+        .width;
+    final screenHeight = MediaQuery
+        .of(context)
+        .size
+        .height;
 
     return Scaffold(
       body: Container(
@@ -169,13 +306,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         ),
         child: Stack(
           children: [
-            // Animated particle background
             _buildParticleBackground(),
-
-            // Floating geometric shapes
             _buildFloatingShapes(screenWidth, screenHeight),
-
-            // Main content with glassmorphism
             SafeArea(
               child: Center(
                 child: AnimatedBuilder(
@@ -239,57 +371,54 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Widget _buildFloatingShapes(double screenWidth, double screenHeight) {
     return Stack(
       children: [
-        // Large floating circle
         Positioned(
           top: screenHeight * 0.1,
           right: -50,
           child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withValues(alpha: 0.1),
-                      Colors.white.withValues(alpha: 0.05),
-                    ],
-                  ),
-                ),
-              )
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.1),
+                  Colors.white.withValues(alpha: 0.05),
+                ],
+              ),
+            ),
+          )
               .animate(onPlay: (controller) => controller.repeat())
               .scale(
-                duration: 4000.ms,
-                begin: const Offset(0.8, 0.8),
-                end: const Offset(1.2, 1.2),
-              )
+            duration: 4000.ms,
+            begin: const Offset(0.8, 0.8),
+            end: const Offset(1.2, 1.2),
+          )
               .then()
               .scale(
-                duration: 4000.ms,
-                begin: const Offset(1.2, 1.2),
-                end: const Offset(0.8, 0.8),
-              ),
+            duration: 4000.ms,
+            begin: const Offset(1.2, 1.2),
+            end: const Offset(0.8, 0.8),
+          ),
         ),
-
-        // Medium floating square
         Positioned(
           bottom: screenHeight * 0.2,
           left: -30,
           child: Transform.rotate(
-                angle: math.pi / 4,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withValues(alpha: 0.08),
-                        Colors.white.withValues(alpha: 0.03),
-                      ],
-                    ),
-                  ),
+            angle: math.pi / 4,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0.08),
+                    Colors.white.withValues(alpha: 0.03),
+                  ],
                 ),
-              )
+              ),
+            ),
+          )
               .animate(onPlay: (controller) => controller.repeat())
               .rotate(duration: 8000.ms),
         ),
@@ -360,70 +489,64 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Widget _buildModernHeader() {
     return Column(
       children: [
-        // Logo with glow effect
         Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.3),
-                    Colors.white.withValues(alpha: 0.1),
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.3),
+                Colors.white.withValues(alpha: 0.1),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.3),
+                blurRadius: 20,
+                spreadRadius: 2,
               ),
-              child: const Icon(
-                Icons.engineering,
-                size: 40,
-                color: Colors.white,
-              ),
-            )
+            ],
+          ),
+          child: const Icon(
+            Icons.engineering,
+            size: 40,
+            color: Colors.white,
+          ),
+        )
             .animate()
             .scale(duration: 800.ms, curve: Curves.elasticOut)
             .then()
             .shimmer(
-              duration: 2000.ms,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
-
+          duration: 2000.ms,
+          color: Colors.white.withValues(alpha: 0.5),
+        ),
         const SizedBox(height: 24),
-
-        // Welcome text with gradient
         ShaderMask(
-              shaderCallback:
-                  (bounds) => const LinearGradient(
-                    colors: [Colors.white, Color(0xFFE0E7FF)],
-                  ).createShader(bounds),
-              child: Text(
-                'Welcome Back',
-                style: GoogleFonts.poppins(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            )
+          shaderCallback: (bounds) =>
+              const LinearGradient(
+                colors: [Colors.white, Color(0xFFE0E7FF)],
+              ).createShader(bounds),
+          child: Text(
+            'Welcome Back',
+            style: GoogleFonts.poppins(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        )
             .animate()
             .fadeIn(duration: 600.ms, delay: 200.ms)
             .slideY(begin: 0.3, end: 0),
-
         const SizedBox(height: 8),
-
         Text(
-              'Sign in to continue your journey',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            )
+          'Sign in to continue your journey',
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            color: Colors.white.withValues(alpha: 0.8),
+          ),
+        )
             .animate()
             .fadeIn(duration: 600.ms, delay: 400.ms)
             .slideY(begin: 0.3, end: 0),
@@ -434,35 +557,28 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   Widget _buildModernInputFields() {
     return Column(
       children: [
-        // Email field
         _buildModernTextField(
-              controller: emailController,
-              label: 'Email',
-              hint: 'Enter your email',
-              icon: Icons.email_outlined,
-              keyboardType: TextInputType.emailAddress,
-            )
+          controller: emailController,
+          label: 'Email',
+          hint: 'Enter your email',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+        )
             .animate()
             .fadeIn(duration: 600.ms, delay: 600.ms)
             .slideX(begin: -0.2, end: 0),
-
         const SizedBox(height: 20),
-
-        // Password field
         _buildModernTextField(
-              controller: passwordController,
-              label: 'Password',
-              hint: 'Enter your password',
-              icon: Icons.lock_outline,
-              isPassword: true,
-            )
+          controller: passwordController,
+          label: 'Password',
+          hint: 'Enter your password',
+          icon: Icons.lock_outline,
+          isPassword: true,
+        )
             .animate()
             .fadeIn(duration: 600.ms, delay: 700.ms)
             .slideX(begin: -0.2, end: 0),
-
         const SizedBox(height: 16),
-
-        // Forgot password link
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
@@ -542,17 +658,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             color: Colors.white.withValues(alpha: 0.8),
             size: 22,
           ),
-          suffixIcon:
-              isPassword
-                  ? IconButton(
-                    onPressed: togglePasswordVisibility,
-                    icon: Icon(
-                      _obscureText ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 22,
-                    ),
-                  )
-                  : null,
+          suffixIcon: isPassword
+              ? IconButton(
+            onPressed: togglePasswordVisibility,
+            icon: Icon(
+              _obscureText ? Icons.visibility_off : Icons.visibility,
+              color: Colors.white.withValues(alpha: 0.8),
+              size: 22,
+            ),
+          )
+              : null,
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
@@ -565,58 +680,57 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   Widget _buildModernLoginButton() {
     return Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53), Color(0xFFFF6B6B)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
-                blurRadius: 20,
-                spreadRadius: 0,
-                offset: const Offset(0, 10),
-              ),
-            ],
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53), Color(0xFFFF6B6B)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF6B6B).withValues(alpha: 0.4),
+            blurRadius: 20,
+            spreadRadius: 0,
+            offset: const Offset(0, 10),
           ),
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              shadowColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            onPressed: isLoading ? null : _login,
-            child:
-                isLoading
-                    ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
-                      ),
-                    )
-                    : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.login, color: Colors.white, size: 20),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Sign In',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
+        ],
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        onPressed: isLoading ? null : _login,
+        child: isLoading
+            ? const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2.5,
           ),
         )
+            : Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.login, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Text(
+              'Sign In',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    )
         .animate()
         .fadeIn(duration: 600.ms, delay: 900.ms)
         .slideY(begin: 0.3, end: 0)
@@ -669,99 +783,242 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     ).animate().fadeIn(duration: 600.ms, delay: 1000.ms);
   }
 
-  Widget _buildModernGoogleButton() {
-    return Container(
-          width: double.infinity,
-          height: 56,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [
-                Colors.white.withValues(alpha: 0.2),
-                Colors.white.withValues(alpha: 0.1),
-              ],
-            ),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: OutlinedButton.icon(
-            onPressed: () {},
-            icon: Container(
-              width: 24,
-              height: 24,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [Color(0xFF4285F4), Color(0xFFEA4335)],
+  Future<String?> _showRoleSelectionDialog() async {
+    String? selectedRole;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false, // User must select a role or cancel
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                'Select Your Role',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                  fontSize: 20,
                 ),
               ),
-              child: const Center(
-                child: Text(
-                  'G',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Choose your role to continue',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selectedRole == 'Contractor'
+                            ? const Color(0xFF667eea)
+                            : Colors.grey.shade300,
+                        width: 2,
+                      ),
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        'Contractor',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Manage projects and teams',
+                        style: GoogleFonts.poppins(fontSize: 12),
+                      ),
+                      leading: Radio<String>(
+                        value: 'Contractor',
+                        groupValue: selectedRole,
+                        activeColor: const Color(0xFF667eea),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedRole = value;
+                          });
+                        },
+                      ),
+                      onTap: () {
+                        setDialogState(() {
+                          selectedRole = 'Contractor';
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selectedRole == 'Freelancer-Employee'
+                            ? const Color(0xFF667eea)
+                            : Colors.grey.shade300,
+                        width: 2,
+                      ),
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        'Freelancer Employee',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Manage site operations',
+                        style: GoogleFonts.poppins(fontSize: 12),
+                      ),
+                      leading: Radio<String>(
+                        value: 'Freelancer-Employee',
+                        groupValue: selectedRole,
+                        activeColor: const Color(0xFF667eea),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            selectedRole = value;
+                          });
+                        },
+                      ),
+                      onTap: () {
+                        setDialogState(() {
+                          selectedRole = 'Freelancer-Employee';
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(null);
+                  },
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(
+                      color: Colors.red,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
+                ElevatedButton(
+                  onPressed: selectedRole != null
+                      ? () {
+                    Navigator.of(dialogContext).pop(selectedRole);
+                  }
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF667eea),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: Text(
+                    'Confirm',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildModernGoogleButton() {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.2),
+            Colors.white.withValues(alpha: 0.1),
+          ],
+        ),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: OutlinedButton.icon(
+        onPressed: isLoading ? null : _handleGoogleSignIn,
+        icon: Container(
+          width: 24,
+          height: 24,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFF4285F4), Color(0xFFEA4335)],
             ),
-            label: Text(
-              'Continue with Google',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
+          ),
+          child: const Center(
+            child: Text(
+              'G',
+              style: TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: Colors.transparent,
-              side: BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
             ),
           ),
-        )
+        ),
+        label: Text(
+          'Continue with Google',
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          side: BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+    )
         .animate()
         .fadeIn(duration: 600.ms, delay: 1100.ms)
         .slideY(begin: 0.3, end: 0);
   }
 
   Widget _buildModernSignUpLink() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          "Don't have an account? ",
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            color: Colors.white.withValues(alpha: 0.8),
-          ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SignUpPage()),
+        );
+      },
+      child: Text(
+        "Don't have an account? Sign Up",
+        style: GoogleFonts.poppins(
+          color: Colors.white.withValues(alpha: 0.9),
+          decoration: TextDecoration.underline,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
         ),
-        TextButton(
-          onPressed: () async {
-            try {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SignUpPage()),
-              );
-            } catch (e) {
-              print('Navigation error: $e');
-            }
-          },
-          child: Text(
-            'Sign Up',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFFFF6B6B),
-            ),
-          ),
-        ),
-      ],
+      ),
     ).animate().fadeIn(duration: 600.ms, delay: 1200.ms);
   }
 }

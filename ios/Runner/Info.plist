@@ -22,6 +22,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	//agora video calling
+	<key>NSCameraUsageDescription</key>
+    <string>Allow access to camera for video calls.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Allow access to microphone for audio calls.</string>
+     //agora video calling
 
 	<key>LSRequiresIPhoneOS</key>
 	<true/>

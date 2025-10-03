@@ -1,26 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
-// import '../services/site_manager_service.dart'; // Service doesn't exist
-// import '../services/site_inspection_service.dart'; // Service doesn't exist
-// import '../services/area_assignment_service.dart'; // Service doesn't exist
-// import '../services/area_inspection_service.dart'; // Service doesn't exist
-// import '../models/site.dart'; // Model doesn't exist
-// import '../models/area.dart'; // Model doesn't exist
 import 'home_screen.dart';
-// import 'site_assignment_history_screen.dart'; // Screen doesn't exist
 import 'login_page.dart';
-// import 'site_details_screen.dart'; // Screen doesn't exist
 import 'work_report_form_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
-// import 'create_site_screen.dart'; // Screen doesn't exist
 import 'package:pump_management_system/screens/assigned_tasks_screen.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
-// import '../components/area_report_generator.dart'; // Component doesn't exist
 import '../services/supabase_service.dart';
 import '../services/report_email_service.dart';
 import '../widgets/billboard_footer.dart';

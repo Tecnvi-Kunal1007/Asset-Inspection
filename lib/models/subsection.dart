@@ -5,12 +5,14 @@ class Subsection {
   final String sectionId;
   final String name;
   final Map<String, dynamic>? data; // JSONB column for additional key-value pairs
+  final String? qrUrl; // Add QR URL field
 
   Subsection({
     required this.id,
     required this.sectionId,
     required this.name,
     this.data,
+    this.qrUrl, // Add to constructor
   });
 
   factory Subsection.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,7 @@ class Subsection {
       sectionId: json['section_id'] as String? ?? '',
       name: json['name'] as String? ?? '', // Separate name column
       data: dataMap != null && dataMap.isNotEmpty ? dataMap : null, // Only key-value pairs
+      qrUrl: json['subsection_qr_url'] as String?, // Updated to use subsection_qr_url
     );
   }
   
@@ -44,6 +47,14 @@ class Subsection {
       'section_id': sectionId,
       'name': name,
       'data': data ?? {},
+      'subsection_qr_url': qrUrl, // Updated to use subsection_qr_url
     };
   }
+
+  // Check if subsection has a valid QR code
+  bool get hasQrCode =>
+      qrUrl != null &&
+      qrUrl!.isNotEmpty &&
+      qrUrl != 'pending' &&
+      Uri.tryParse(qrUrl!)?.hasScheme == true;
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pump_management_system/screens/section_product_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:http/http.dart' as http;
 import '../models/premise.dart';
 import '../models/section.dart';
 import '../models/subsection.dart';
@@ -435,32 +437,173 @@ class _SectionDetailsScreenState extends State<SectionDetailsScreen> with Ticker
                           ),
                         ],
                       ),
-                      // if (widget.section.additionalData?['location'] != null) ...[
-                      //   SizedBox(height: ResponsiveHelper.getSpacing(context, 4)),
-                      //   Row(
-                      //     children: [
-                      //       Icon(
-                      //         Icons.location_on_outlined,
-                      //         size: ResponsiveHelper.getIconSize(context, 16),
-                      //         color: ThemeHelper.textSecondary,
-                      //       ),
-                      //       SizedBox(width: ResponsiveHelper.getSpacing(context, 4)),
-                      //       Text(
-                      //         widget.section.additionalData!['location'].toString(),
-                      //         style: GoogleFonts.poppins(
-                      //           fontSize: ResponsiveHelper.getFontSize(context, 14),
-                      //           color: ThemeHelper.textSecondary,
-                      //         ),
-                      //       ),
-                      //     ],
-                      //   ),
-                      // ],
                     ],
                   ),
                 ),
+                // QR Code Section - Add this after the existing content
+                if (widget.section.sectionQrUrl != null &&
+                    widget.section.sectionQrUrl!.isNotEmpty &&
+                    widget.section.sectionQrUrl != 'pending')
+                  Column(
+                    children: [
+                      const SizedBox(height: 16),
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            widget.section.sectionQrUrl!,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    ThemeHelper.primaryBlue,
+                                  ),
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              print('Error loading QR code: $error');
+                              print('QR URL: ${widget.section.sectionQrUrl}');
+                              return Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.qr_code_2,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'QR Error',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.share, size: 16),
+                            label: const Text('WhatsApp'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            onPressed: () => _shareQrCode(widget.section.sectionQrUrl!, 'whatsapp'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.email, size: 16),
+                            label: const Text('Email'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            onPressed: () => _shareQrCode(widget.section.sectionQrUrl!, 'email'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
               ],
             ),
-          ],
+            // QR Code Info Banner - Add this after the main card content
+            if (widget.section.sectionQrUrl != null &&
+                widget.section.sectionQrUrl!.isNotEmpty &&
+                widget.section.sectionQrUrl != 'pending') ...[  
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.qr_code_scanner,
+                        color: Colors.green.shade700,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'QR Code Available',
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'This section has a QR code that includes its name and ID. Scan it for quick access or download it for offline use.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.green.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            ],
         ),
       ),
     );
@@ -805,30 +948,30 @@ class _SectionDetailsScreenState extends State<SectionDetailsScreen> with Ticker
           child: Row(
             children: [
               product.photoUrl != null && product.photoUrl!.isNotEmpty
-                ? Container(
-                    width: ResponsiveHelper.getIconSize(context, 50),
-                    height: ResponsiveHelper.getIconSize(context, 50),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      image: DecorationImage(
-                        image: NetworkImage(product.photoUrl!),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  )
-                : Container(
-                    padding: EdgeInsets.all(
-                        ResponsiveHelper.getUniformPadding(context) / 1.5),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      Icons.inventory,
-                      color: Colors.purple,
-                      size: ResponsiveHelper.getIconSize(context, 24),
-                    ),
+                  ? Container(
+                width: ResponsiveHelper.getIconSize(context, 50),
+                height: ResponsiveHelper.getIconSize(context, 50),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  image: DecorationImage(
+                    image: NetworkImage(product.photoUrl!),
+                    fit: BoxFit.cover,
                   ),
+                ),
+              )
+                  : Container(
+                padding: EdgeInsets.all(
+                    ResponsiveHelper.getUniformPadding(context) / 1.5),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.inventory,
+                  color: Colors.purple,
+                  size: ResponsiveHelper.getIconSize(context, 24),
+                ),
+              ),
               SizedBox(width: ResponsiveHelper.getSpacing(context, 16)),
               Expanded(
                 child: Column(
@@ -864,4 +1007,73 @@ class _SectionDetailsScreenState extends State<SectionDetailsScreen> with Ticker
       ),
     );
   }
+
+
+// Place the _shareQrCode function HERE, BEFORE the closing brace
+  Future<void> _shareQrCode(String qrUrl, String shareType) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Dialog(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 20),
+                  Text('Preparing QR code...', style: GoogleFonts.poppins()),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Download the QR code image
+      final response = await http.get(Uri.parse(qrUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download QR code');
+      }
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Share the QR code
+      final String shareText = 'QR Code for ${widget.section.name}';
+
+      if (shareType == 'whatsapp') {
+        await Share.share(
+          'Check out the QR Code for ${widget.section.name}: $qrUrl',
+          subject: 'QR Code for Section',
+        );
+      } else if (shareType == 'email') {
+        await Share.share(
+          'Check out the QR Code for ${widget.section.name}: $qrUrl',
+          subject: 'QR Code for Section: ${widget.section.name}',
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if it's still open
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error sharing QR code: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+  }
 }
+// This should be the ONLY closing brace for the _SectionDetailsScreenState class
+

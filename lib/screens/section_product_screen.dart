@@ -343,7 +343,7 @@ class ProductForm {
               
               // Properties Section
               Text(
-                'Properties',
+                'Details',
                 style: GoogleFonts.roboto(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -363,7 +363,7 @@ class ProductForm {
                         child: TextFormField(
                           controller: keyValueControllers[i]['key'],
                           decoration: InputDecoration(
-                            labelText: 'Property',
+                            labelText: 'Add Name',
                             hintText: 'e.g. Color',
                             filled: true,
                             fillColor: Colors.grey.shade50,
@@ -380,7 +380,7 @@ class ProductForm {
                         child: TextFormField(
                           controller: keyValueControllers[i]['value'],
                           decoration: InputDecoration(
-                            labelText: 'Value',
+                            labelText: 'Detail',
                             hintText: 'e.g. Blue',
                             filled: true,
                             fillColor: Colors.grey.shade50,

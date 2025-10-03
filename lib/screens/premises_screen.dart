@@ -1,14 +1,21 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/location_helper.dart';
 import '../services/supabase_service.dart';
 import '../utils/responsive_helper.dart';
 import '../utils/theme_helper.dart';
 import '../models/premise.dart';
 import 'PremiseDetailsScreen.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+
 
 class CreatePremiseScreen extends StatefulWidget {
   const CreatePremiseScreen({super.key});
@@ -82,9 +89,9 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
             .eq('id', user.id)
             .single()
             .catchError((_) {
-              setState(() => _isLoading = false);
-              throw Exception('Contractor profile not found');
-            });
+          setState(() => _isLoading = false);
+          throw Exception('Contractor profile not found');
+        });
 
         setState(() {
           _contractorName = contractor['name'] as String?;
@@ -100,6 +107,83 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
       setState(() => _isLoading = false);
       if (!mounted) return;
       _showSnackBar('Error loading contractor details: $e');
+    }
+  }
+
+  // Method to show location on map
+  Future<void> _showLocationOnMap(String location) async {
+    try {
+      // Check if location contains coordinates (with or without "Location:" prefix)
+      final coordinatePattern = RegExp(r'(-?\d+\.?\d*),\s*(-?\d+\.?\d*)');
+      final match = coordinatePattern.firstMatch(location);
+      
+      String mapUrl;
+      
+      if (match != null) {
+        // Extract coordinates
+        final lat = match.group(1);
+        final lng = match.group(2);
+        
+        // Check if this is just coordinates or if there's readable address text
+        final coordinatePart = match.group(0)!;
+        
+        // Remove common prefixes and the coordinate part to get potential address
+        String addressPart = location
+            .replaceAll(RegExp(r'^Location:\s*'), '') // Remove "Location: " prefix
+            .replaceAll(coordinatePart, '') // Remove coordinates
+            .replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '') // Remove leading/trailing commas
+            .trim();
+        
+        // If there's meaningful address text (more than just coordinates), use it
+        if (addressPart.isNotEmpty && 
+            addressPart.length > 5 && 
+            !RegExp(r'^[-\d\s.,]+$').hasMatch(addressPart)) { // Not just numbers, spaces, commas, dots, dashes
+          final encodedLocation = Uri.encodeComponent(addressPart);
+          mapUrl = 'https://www.google.com/maps/search/?api=1&query=$encodedLocation';
+          if (kDebugMode) {
+            print('🗺️ Using address for map: $addressPart');
+          }
+        } else {
+          // Use coordinates with a descriptive label
+          mapUrl = 'https://www.google.com/maps?q=$lat,$lng&query_place_id=';
+          if (kDebugMode) {
+            print('🗺️ Using coordinates for map: $lat, $lng');
+          }
+        }
+      } else {
+        // Location is purely an address, encode it for URL
+        final encodedLocation = Uri.encodeComponent(location);
+        mapUrl = 'https://www.google.com/maps/search/?api=1&query=$encodedLocation';
+        if (kDebugMode) {
+          print('🗺️ Using full address for map: $location');
+        }
+      }
+
+      final uri = Uri.parse(mapUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open map application'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error opening map: $e');
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error opening map'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -146,7 +230,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
           name: '',
           additionalData: {},
         );
-        createdPremises.add(createdPremise as Premise);
+        createdPremises.add(createdPremise);
       }
 
       Navigator.of(context).pop();
@@ -169,9 +253,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder:
-                (context) =>
-                    PremiseDetailsScreen(premise: createdPremises.first),
+            builder: (context) => PremiseDetailsScreen(premise: createdPremises.first),
           ),
         );
       }
@@ -224,7 +306,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
 
   void _addPremiseForm() {
     setState(() {
-      _premiseForms.add(PremiseForm());
+      _premiseForms.add(PremiseForm(onShowLocationOnMap: _showLocationOnMap));
     });
   }
 
@@ -242,7 +324,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
       _isCreating = !_isCreating;
       if (_isCreating) {
         if (_premiseForms.isEmpty) {
-          _premiseForms.add(PremiseForm());
+          _premiseForms.add(PremiseForm(onShowLocationOnMap: _showLocationOnMap));
         }
         _animationController.forward();
       } else {
@@ -255,13 +337,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
   @override
   Widget build(BuildContext context) {
     final filteredPremises =
-        _premises
-            .where(
-              (premise) => premise.name.toLowerCase().contains(
-                _searchController.text.toLowerCase(),
-              ),
-            )
-            .toList();
+    _premises.where((premise) => premise.name.toLowerCase().contains(_searchController.text.toLowerCase())).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -296,68 +372,60 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
           ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+        children: [
+          if (!_isCreating) _buildHeaderCard(),
+          if (_isCreating)
+            Expanded(
+              child: AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) => FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: _buildCreateForm(),
+                  ),
+                ),
+              ),
+            ),
+          if (!_isCreating)
+            Expanded(
+              child: Column(
                 children: [
-                  if (!_isCreating) _buildHeaderCard(),
-                  if (_isCreating)
-                    Expanded(
-                      child: AnimatedBuilder(
-                        animation: _animationController,
-                        builder:
-                            (context, child) => FadeTransition(
-                              opacity: _fadeAnimation,
-                              child: SlideTransition(
-                                position: _slideAnimation,
-                                child: _buildCreateForm(),
-                              ),
-                            ),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search your premises...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
                       ),
+                      onChanged: (value) => setState(() {}),
                     ),
-                  if (!_isCreating)
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 16),
-                            child: TextField(
-                              controller: _searchController,
-                              decoration: InputDecoration(
-                                hintText: 'Search your premises...',
-                                prefixIcon: const Icon(Icons.search),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                filled: true,
-                                fillColor: Colors.white,
-                              ),
-                              onChanged: (value) => setState(() {}),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child:
-                                filteredPremises.isEmpty
-                                    ? _buildEmptyState()
-                                    : ListView.builder(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                      ),
-                                      itemCount: filteredPremises.length,
-                                      itemBuilder:
-                                          (context, index) => _buildPremiseCard(
-                                            filteredPremises[index],
-                                          ),
-                                    ),
-                          ),
-                        ],
-                      ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: filteredPremises.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: filteredPremises.length,
+                      itemBuilder: (context, index) => _buildPremiseCard(filteredPremises[index]),
                     ),
+                  ),
                 ],
               ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -703,8 +771,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
                               ),
                             ),
                           ),
-                          if (premise.qr_Url != null &&
-                              premise.qr_Url!.isNotEmpty)
+                          if (premise.qr_Url != null && premise.qr_Url!.isNotEmpty)
                             IconButton(
                               icon: Icon(
                                 Icons.download,
@@ -721,7 +788,7 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
                           color: ThemeHelper.textSecondary,
                         ),
                       ),
-                      if (premise.additionalData['location'] != null)
+                      if (premise.location != null)
                         Row(
                           children: [
                             Icon(
@@ -730,11 +797,14 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
                               color: Colors.grey.shade600,
                             ),
                             const SizedBox(width: 4),
-                            Text(
-                              premise.additionalData['location'].toString(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
+                            Flexible(
+                              child: Text(
+                                premise.location!,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -810,9 +880,9 @@ class _CreatePremiseScreenState extends State<CreatePremiseScreen>
         throw Exception('Failed to download QR code');
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error downloading QR code: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error downloading QR code: $e')),
+      );
     }
   }
 }
@@ -822,6 +892,9 @@ class PremiseForm {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController locationController = TextEditingController();
   final List<Map<String, String>> keyValuePairs = [{}];
+  final Function(String)? onShowLocationOnMap;
+
+  PremiseForm({this.onShowLocationOnMap});
 
   void dispose() {
     nameController.dispose();
@@ -836,13 +909,11 @@ class PremiseForm {
   Map<String, dynamic> getData() {
     final data = {
       'name': nameController.text,
-      'location':
-          locationController.text.isNotEmpty ? locationController.text : null,
+      'location': locationController.text.isNotEmpty ? locationController.text : null,
     };
 
     for (var pair in keyValuePairs) {
-      if (pair['key']?.isNotEmpty == true &&
-          pair['value']?.isNotEmpty == true) {
+      if (pair['key']?.isNotEmpty == true && pair['value']?.isNotEmpty == true) {
         data[pair['key']!] = pair['value'];
       }
     }
@@ -850,95 +921,254 @@ class PremiseForm {
     return data;
   }
 
+  // Updated buildForm method for PremiseForm class
   Widget buildForm(BuildContext context) {
-    return Column(
-      children: [
-        TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            labelText: 'Premise Name *',
-            hintText: 'e.g., Office Building, Shopping Mall',
-            prefixIcon: Icon(Icons.business, color: ThemeHelper.primaryBlue),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            isDense: true,
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: locationController,
-          decoration: InputDecoration(
-            labelText: 'Location',
-            hintText: 'e.g., Delhi, Mumbai, Bangalore',
-            prefixIcon: Icon(Icons.location_on, color: ThemeHelper.primaryBlue),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            isDense: true,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Additional Properties',
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: ThemeHelper.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...keyValuePairs.asMap().entries.map((entry) {
-          int pairIndex = entry.key;
-          var pair = entry.value;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Row(
+    return StatefulBuilder(
+      builder: (context, setFormState) {
+        return Column(
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: 'Premise Name *',
+                hintText: 'e.g., Office Building, Shopping Mall',
+                prefixIcon: Icon(Icons.business, color: ThemeHelper.primaryBlue),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
                 Expanded(
                   child: TextField(
+                    controller: locationController,
                     decoration: InputDecoration(
-                      labelText: 'Property',
-                      hintText: 'Type, Capacity, etc.',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      labelText: 'Location',
+                      hintText: 'e.g., Delhi, Mumbai, Bangalore',
+                      prefixIcon: Icon(Icons.location_on, color: ThemeHelper.primaryBlue),
+                      suffixIcon: locationController.text.isNotEmpty 
+                        ? Tooltip(
+                            message: 'View on Map',
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () => onShowLocationOnMap?.call(locationController.text),
+                                child: Icon(
+                                  Icons.map,
+                                  color: ThemeHelper.primaryBlue,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          )
+                        : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       isDense: true,
                     ),
-                    onChanged: (value) => pair['key'] = value,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Value',
-                      hintText: 'Building, 100, etc.',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      isDense: true,
-                    ),
-                    onChanged: (value) => pair['value'] = value,
-                  ),
+                IconButton(
+                  icon: Icon(Icons.my_location, color: ThemeHelper.primaryBlue),
+                  onPressed: () async {
+                    try {
+                      if (kDebugMode) {
+                        print('🎯 Location button pressed - starting location fetch...');
+                      }
+
+                      // Show immediate feedback
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Getting your location...'),
+                            ],
+                          ),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(seconds: 30),
+                        ),
+                      );
+
+                      final locationHelper = LocationHelper();
+                      final address = await locationHelper.getCurrentAddressSafely(context);
+
+                      // Hide the loading snackbar
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+                      if (address != null && address.isNotEmpty) {
+                        if (kDebugMode) {
+                          print('✅ Address received: $address');
+                        }
+
+                        // Update the text field
+                        locationController.text = address;
+
+                        // Force UI update
+                        setFormState(() {});
+
+                        // Show success message
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Location found: ${address.length > 50 ? address.substring(0, 50) + '...' : address}'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      } else {
+                        if (kDebugMode) {
+                          print('⚠️ No valid address received');
+                        }
+
+                        // Show option to enter manually
+                        final shouldEnterManually = await showDialog<bool>(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: Text('Location Not Found'),
+                              content: Text(
+                                  'We couldn\'t determine a readable address for your current location. '
+                                      'This might be because:\n'
+                                      '• You\'re in a remote area\n'
+                                      '• Location services are limited\n'
+                                      '• Network connectivity issues\n\n'
+                                      'Would you like to enter your location manually?'
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  child: Text('Enter Manually'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+
+                        if (shouldEnterManually == true) {
+                          // Focus on the location text field
+                          FocusScope.of(context).requestFocus();
+                          // You might want to add a FocusNode to the TextField and use it here
+                        }
+                      }
+                    } catch (e) {
+                      if (kDebugMode) {
+                        print('❌ Error in location button handler: $e');
+                      }
+
+                      // Hide loading snackbar
+                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+                      // Show error message with helpful information
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Could not get your location'),
+                              Text(
+                                'Please check: GPS enabled, internet connection, app permissions',
+                                style: TextStyle(fontSize: 12, color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: Colors.red,
+                          duration: Duration(seconds: 5),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
                 ),
-                if (keyValuePairs.length > 1)
-                  IconButton(
-                    onPressed: () {
-                      keyValuePairs.removeAt(pairIndex);
-                    },
-                    icon: const Icon(Icons.remove_circle, color: Colors.red),
-                    iconSize: 20,
-                  ),
               ],
             ),
-          );
-        }).toList(),
-        TextButton.icon(
-          onPressed: () {
-            keyValuePairs.add({});
-          },
-          icon: const Icon(Icons.add, size: 16),
-          label: Text('Add Property', style: GoogleFonts.poppins(fontSize: 12)),
-          style: TextButton.styleFrom(foregroundColor: ThemeHelper.primaryBlue),
-        ),
-      ],
+            const SizedBox(height: 16),
+            Text(
+              'Additional Properties',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: ThemeHelper.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...keyValuePairs.asMap().entries.map((entry) {
+              int pairIndex = entry.key;
+              var pair = entry.value;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Property',
+                          hintText: 'Type, Capacity, etc.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          isDense: true,
+                        ),
+                        onChanged: (value) {
+                          pair['key'] = value;
+                          setFormState(() {});
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        decoration: InputDecoration(
+                          labelText: 'Value',
+                          hintText: 'Building, 100, etc.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          isDense: true,
+                        ),
+                        onChanged: (value) {
+                          pair['value'] = value;
+                          setFormState(() {});
+                        },
+                      ),
+                    ),
+                    if (keyValuePairs.length > 1)
+                      IconButton(
+                        onPressed: () {
+                          keyValuePairs.removeAt(pairIndex);
+                          setFormState(() {});
+                        },
+                        icon: const Icon(Icons.remove_circle, color: Colors.red),
+                        iconSize: 20,
+                      ),
+                  ],
+                ),
+              );
+            }).toList(),
+            TextButton.icon(
+              onPressed: () {
+                keyValuePairs.add({});
+                setFormState(() {});
+              },
+              icon: const Icon(Icons.add, size: 16),
+              label: Text('Add Property', style: GoogleFonts.poppins(fontSize: 12)),
+              style: TextButton.styleFrom(foregroundColor: ThemeHelper.primaryBlue),
+            ),
+          ],
+        );
+      },
     );
   }
+
+
+
 }
