@@ -19,7 +19,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   @override
   void dispose() {
-    _scannerController.dispose();
+    _scannerController.dispose();                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
     super.dispose();
   }
 
@@ -32,7 +32,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       );
       return;
     }
-
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -99,3 +99,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     );
   }
 }
+    
+
+                                                                                                                                                                                

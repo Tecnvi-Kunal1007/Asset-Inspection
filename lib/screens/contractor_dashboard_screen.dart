@@ -8,7 +8,11 @@ import 'package:pump_management_system/screens/login_page.dart';
 import 'QrScannerScreen.dart';
 import 'assignment_overview_screen.dart';
 import '../widgets/floating_chat.dart';
+
+// import 'area_inspection_status_screen.dart'; // Screen doesn't exist
 import 'employee_management_screen.dart';
+// import 'product_management_screen.dart';
+
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'call_screen.dart';
@@ -386,6 +390,7 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
           pinned: true,
           backgroundColor: Colors.white,
           elevation: 0,
+          actions: [],
           leading: Padding(
             padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
             child: GestureDetector(
@@ -758,6 +763,32 @@ class _ContractorDashboardScreenState extends State<ContractorDashboardScreen>
             builder: (_) => const EmployeeManagementScreen(),
           ),
         ),
+      ),
+      // DashboardItem(
+      //   title: 'Product Management',
+      //   subtitle: 'AI-powered inventory system',
+      //   icon: Icons.inventory_2_rounded,
+      //   color: const Color(0xFF9C27B0),
+      //   onTap:
+      //       () => Navigator.push(
+      //         context,
+      //         MaterialPageRoute(
+      //           builder: (_) => const ProductManagementScreen(),
+      //         ),
+      //       ),
+      // ),
+      DashboardItem(
+        title: 'Product Management',
+        subtitle: 'AI-powered inventory system',
+        icon: Icons.inventory_2_rounded,
+        color: const Color(0xFF9C27B0),
+        onTap:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProductManagementScreen(),
+              ),
+            ),
       ),
       DashboardItem(
         title: 'Inspection Status',

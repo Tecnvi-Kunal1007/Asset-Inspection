@@ -197,4 +197,55 @@ SELECT assign_freelancer_to_premise(
 -- GRANT EXECUTE ON FUNCTION assign_freelancer_to_premise(UUID, UUID, TEXT, TEXT[]) TO authenticated;
 -- GRANT EXECUTE ON FUNCTION remove_freelancer_assignment(UUID, UUID) TO authenticated;
 
+-- 13. Create client_products table for contractor product management
+CREATE TABLE IF NOT EXISTS client_products (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    client_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    product_name TEXT NOT NULL,
+    product_details JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Add indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_client_products_client_id ON client_products(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_products_product_name ON client_products(product_name);
+CREATE INDEX IF NOT EXISTS idx_client_products_created_at ON client_products(created_at);
+
+-- Add GIN index for JSONB product_details for efficient querying
+CREATE INDEX IF NOT EXISTS idx_client_products_details_gin ON client_products USING GIN (product_details);
+
+-- Enable RLS (Row Level Security)
+ALTER TABLE client_products ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "Users can view their own products" ON client_products
+    FOR SELECT USING (auth.uid() = client_id);
+
+CREATE POLICY "Users can insert their own products" ON client_products
+    FOR INSERT WITH CHECK (auth.uid() = client_id);
+
+CREATE POLICY "Users can update their own products" ON client_products
+    FOR UPDATE USING (auth.uid() = client_id);
+
+CREATE POLICY "Users can delete their own products" ON client_products
+    FOR DELETE USING (auth.uid() = client_id);
+
+-- Create trigger for updated_at
+CREATE OR REPLACE FUNCTION update_client_products_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = TIMEZONE('utc'::text, NOW());
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_client_products_updated_at
+    BEFORE UPDATE ON client_products
+    FOR EACH ROW
+    EXECUTE FUNCTION update_client_products_updated_at();
+
+-- Grant permissions
+GRANT SELECT, INSERT, UPDATE, DELETE ON client_products TO authenticated;
+
 -- End of database updates
